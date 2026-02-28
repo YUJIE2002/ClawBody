@@ -141,37 +141,7 @@ fn delete_model(app: tauri::AppHandle, filename: String) -> Result<(), String> {
 
 // ── Commands: Window management ─────────────────────────────────────
 
-/// Open or focus the settings window.
-#[tauri::command]
-fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("settings") {
-        window.set_focus().map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-
-    // Use query param to signal settings mode
-    let url = if cfg!(debug_assertions) {
-        tauri::WebviewUrl::External("http://localhost:1420?settings=1".parse().unwrap())
-    } else {
-        tauri::WebviewUrl::App("index.html?settings=1".into())
-    };
-
-    tauri::WebviewWindowBuilder::new(
-        &app,
-        "settings",
-        url,
-    )
-    .title("ClawBody Settings")
-    .inner_size(780.0, 560.0)
-    .min_inner_size(600.0, 400.0)
-    .resizable(true)
-    .decorations(true)
-    .transparent(false)
-    .build()
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
+// Settings panel is now rendered as an overlay in the main window — no separate window needed.
 
 /// Toggle main window visibility (for system tray / context menu).
 #[tauri::command]
@@ -246,7 +216,6 @@ pub fn run() {
             read_model_file,
             delete_model,
             // Window
-            open_settings,
             toggle_visibility,
             toggle_always_on_top,
             move_window,

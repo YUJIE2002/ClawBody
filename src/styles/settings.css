@@ -79,6 +79,19 @@ html:has(.settings-panel) #root {
 .save-indicator { color: #4ade80; font-size: 12px; }
 .version-label { color: #666; font-size: 12px; }
 
+.btn-close {
+  background: #3a3a6a;
+  border: none;
+  color: #e0e0e0;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  width: 100%;
+  transition: background 0.15s;
+}
+.btn-close:hover { background: #4a2020; color: #f87171; }
+
 /* ── Content ───────────────────────────────────── */
 
 .settings-content {

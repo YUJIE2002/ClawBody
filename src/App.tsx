@@ -4,27 +4,20 @@ import { LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
 import VRMViewer from "./components/VRMViewer";
 import ContextMenu, { type MenuItem } from "./components/ContextMenu";
+import SettingsPanel from "./components/SettingsPanel";
 import { useOpenClaw } from "./hooks/useOpenClaw";
 import {
   type AppConfig,
   loadConfig,
   resolveModelUrl,
-  openSettings,
-  toggleVisibility,
-  toggleAlwaysOnTop,
-  quitApp,
+  DEFAULT_CONFIG,
 } from "./lib/config";
 
-/**
- * ClawBody — Main Application
- *
- * Renders a transparent window with a VRM 3D character.
- * Right-click opens a context menu for settings, visibility, etc.
- */
 export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [modelUrl, setModelUrl] = useState("/models/default.vrm");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const { connected, emotion, speaking } = useOpenClaw(config?.gatewayUrl);
 
@@ -32,115 +25,145 @@ export default function App() {
   useEffect(() => {
     loadConfig()
       .then((cfg) => setConfig(cfg))
-      .catch((err) => console.error("[ClawBody] Failed to load config:", err));
+      .catch(() => setConfig(DEFAULT_CONFIG));
   }, []);
 
   // Resolve model URL when model path changes
   useEffect(() => {
     if (config === null) return;
     let cancelled = false;
-    const currentModelPath = config.modelPath;
-
-    resolveModelUrl(currentModelPath).then((url) => {
+    resolveModelUrl(config.modelPath).then((url) => {
       if (!cancelled) setModelUrl(url);
     });
+    return () => { cancelled = true; };
+  }, [config?.modelPath]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [config?.modelPath]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Apply window config when config changes
+  // Apply window config
   useEffect(() => {
-    if (!config) return;
+    if (!config || showSettings) return;
     const win = getCurrentWindow();
-    win
-      .setSize(new LogicalSize(config.windowWidth, config.windowHeight))
-      .catch(() => {});
+    win.setSize(new LogicalSize(config.windowWidth, config.windowHeight)).catch(() => {});
     win.setAlwaysOnTop(config.alwaysOnTop).catch(() => {});
-  }, [config]);
+  }, [config, showSettings]);
 
-  // Listen for config-changed events from settings window
+  // Listen for config-changed events
   useEffect(() => {
     const unlisten = listen<AppConfig>("config-changed", (event) => {
       setConfig(event.payload);
     });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
-  // Enable window dragging on left-click
+  // Window dragging on left-click (only when settings not shown)
   useEffect(() => {
+    if (showSettings) return;
     const appWindow = getCurrentWindow();
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      const target = e.target as HTMLElement;
-      if (
-        target.closest(".vrm-viewer") ||
-        target.id === "root" ||
-        target.classList.contains("drag-region")
-      ) {
-        appWindow.startDragging();
-      }
+      appWindow.startDragging();
     };
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, []);
+  }, [showSettings]);
 
-  // Context menu handler
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY });
+  // Right-click context menu (only when settings not shown)
+  useEffect(() => {
+    if (showSettings) return;
+    const handler = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    };
+    document.addEventListener("contextmenu", handler, true);
+    return () => document.removeEventListener("contextmenu", handler, true);
+  }, [showSettings]);
+
+  const handleOpenSettings = () => {
+    // Resize window to fit settings panel
+    const win = getCurrentWindow();
+    win.setSize(new LogicalSize(780, 560)).catch(() => {});
+    win.setAlwaysOnTop(false).catch(() => {});
+    win.setDecorations(true).catch(() => {});
+    setShowSettings(true);
+  };
+
+  const handleCloseSettings = () => {
+    const win = getCurrentWindow();
+    const w = config?.windowWidth ?? 400;
+    const h = config?.windowHeight ?? 600;
+    win.setSize(new LogicalSize(w, h)).catch(() => {});
+    win.setAlwaysOnTop(config?.alwaysOnTop ?? true).catch(() => {});
+    win.setDecorations(false).catch(() => {});
+    setShowSettings(false);
+  };
+
+  const handleConfigUpdate = (newConfig: AppConfig) => {
+    setConfig(newConfig);
   };
 
   const menuItems: MenuItem[] = [
-    { label: "⚙️  Settings", action: () => { openSettings(); } },
-    { label: "👁️  Toggle Visibility", action: () => { toggleVisibility(); } },
-    { label: "📌  Toggle Always on Top", action: () => { toggleAlwaysOnTop(); } },
-    { label: "❌  Quit", action: () => { quitApp(); }, danger: true },
+    { label: "⚙️  Settings", action: handleOpenSettings },
+    {
+      label: "📌  Toggle Always on Top",
+      action: () => {
+        const win = getCurrentWindow();
+        const next = !(config?.alwaysOnTop ?? true);
+        win.setAlwaysOnTop(next).catch(() => {});
+        if (config) setConfig({ ...config, alwaysOnTop: next });
+      },
+    },
+    {
+      label: "❌  Quit",
+      action: () => {
+        const win = getCurrentWindow();
+        win.close();
+      },
+      danger: true,
+    },
   ];
 
+  // ── Settings mode ──
+  if (showSettings) {
+    return (
+      <div style={{ width: "100%", height: "100vh", background: "#1a1a2e" }}>
+        <SettingsPanel
+          config={config ?? DEFAULT_CONFIG}
+          onConfigUpdate={handleConfigUpdate}
+          onClose={handleCloseSettings}
+        />
+      </div>
+    );
+  }
+
+  // ── Character mode ──
   const opacity = config?.opacity ?? 1.0;
   const scale = config?.characterScale ?? 1.0;
 
   return (
-    <div className="app" onContextMenu={handleContextMenu}>
-      {/* Status indicator */}
+    <div className="app">
       <div
         className="status-dot"
         title={connected ? "Connected to OpenClaw" : "Disconnected"}
         style={{ backgroundColor: connected ? "#4ade80" : "#f87171" }}
       />
 
-      {/* VRM Character Viewer */}
-      <div
-        style={{
-          opacity,
-          transform: `scale(${scale})`,
-          transformOrigin: "center bottom",
-          width: "100%",
-          height: "100%",
-          position: "relative",
-        }}
-      >
+      <div style={{
+        opacity,
+        transform: `scale(${scale})`,
+        transformOrigin: "center bottom",
+        width: "100%",
+        height: "100%",
+        position: "relative",
+      }}>
         <VRMViewer modelUrl={modelUrl} emotion={emotion} speaking={speaking} />
-        {/* Transparent interaction layer above canvas to capture right-click */}
         <div
-          onContextMenu={handleContextMenu}
           style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            zIndex: 10,
+            position: "absolute", top: 0, left: 0,
+            width: "100%", height: "100%", zIndex: 10,
           }}
         />
       </div>
 
-      {/* Context menu overlay */}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}

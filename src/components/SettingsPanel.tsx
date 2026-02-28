@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { emit } from "@tauri-apps/api/event";
-import { type AppConfig, loadConfig, saveConfig, DEFAULT_CONFIG } from "../lib/config";
+import { useState, useCallback } from "react";
+import { type AppConfig, saveConfig } from "../lib/config";
 import ModelTab from "./settings/ModelTab";
 import ConnectionTab from "./settings/ConnectionTab";
 import AppearanceTab from "./settings/AppearanceTab";
@@ -22,61 +21,34 @@ const TABS: TabDef[] = [
   { id: "about", icon: "ℹ️", label: "关于" },
 ];
 
-/**
- * SettingsPanel — Main settings dashboard rendered in the settings window.
- * Left sidebar with tabs, right content area.
- */
-export default function SettingsPanel() {
+interface Props {
+  config: AppConfig;
+  onConfigUpdate: (config: AppConfig) => void;
+  onClose: () => void;
+}
+
+export default function SettingsPanel({ config, onConfigUpdate, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("model");
-  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Load config on mount
-  useEffect(() => {
-    loadConfig()
-      .then((cfg) => setConfig(cfg))
-      .catch((err) => console.error("[Settings] Failed to load config:", err))
-      .finally(() => setLoading(false));
-  }, []);
-
-  // Save config and notify main window
-  const handleSave = useCallback(
-    async (newConfig: AppConfig) => {
-      setConfig(newConfig);
+  const updateConfig = useCallback(
+    async (patch: Partial<AppConfig>) => {
+      const updated = { ...config, ...patch };
+      onConfigUpdate(updated);
       setSaving(true);
       try {
-        await saveConfig(newConfig);
-        await emit("config-changed", newConfig);
+        await saveConfig(updated);
       } catch (err) {
         console.error("[Settings] Failed to save config:", err);
       } finally {
         setSaving(false);
       }
     },
-    [],
+    [config, onConfigUpdate],
   );
-
-  // Update a single config field
-  const updateConfig = useCallback(
-    (patch: Partial<AppConfig>) => {
-      const updated = { ...config, ...patch };
-      handleSave(updated);
-    },
-    [config, handleSave],
-  );
-
-  if (loading) {
-    return (
-      <div className="settings-panel">
-        <div className="settings-loading">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="settings-panel">
-      {/* Sidebar */}
       <nav className="settings-sidebar">
         <div className="settings-logo">
           <span className="settings-logo-icon">🎭</span>
@@ -97,12 +69,11 @@ export default function SettingsPanel() {
         </div>
 
         <div className="settings-sidebar-footer">
-          {saving && <span className="save-indicator">Saving...</span>}
-          <span className="version-label">v0.1.0</span>
+          {saving && <span className="save-indicator">💾 Saving...</span>}
+          <button className="btn-close" onClick={onClose}>✕ Close</button>
         </div>
       </nav>
 
-      {/* Content */}
       <main className="settings-content">
         {activeTab === "model" && (
           <ModelTab config={config} updateConfig={updateConfig} />

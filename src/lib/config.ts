@@ -68,18 +68,6 @@ export async function resolveModelUrl(modelPath: string): Promise<string> {
   }
 }
 
-export async function openSettings(): Promise<void> {
-  return invoke("open_settings");
-}
-
 export async function toggleVisibility(): Promise<void> {
   return invoke("toggle_visibility");
-}
-
-export async function toggleAlwaysOnTop(): Promise<boolean> {
-  return invoke<boolean>("toggle_always_on_top");
-}
-
-export async function quitApp(): Promise<void> {
-  return invoke("quit_app");
 }
