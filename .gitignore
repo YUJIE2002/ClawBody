@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+src-tauri/target/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VRM models (large binary files — users provide their own)
+public/models/*.vrm
+
+# Tauri generated
+src-tauri/gen/
+
+# Debug
+*.log
+npm-debug.log*

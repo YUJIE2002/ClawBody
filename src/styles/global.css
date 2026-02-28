@@ -1,0 +1,81 @@
+/*
+ * ClawBody — Global Styles
+ *
+ * The entire window must be transparent so the VRM character
+ * appears to float directly on the desktop. No backgrounds,
+ * no scrollbars, no visible chrome.
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  /* Prevent text selection on the overlay */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  /* Ensure transparency works on all platforms */
+  background-color: transparent;
+  /* Remove any default scrollbar */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body::-webkit-scrollbar {
+  display: none;
+}
+
+.app {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: transparent;
+}
+
+/* Draggable region — allows window movement by dragging empty areas */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+/* Connection status indicator */
+.status-dot {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  z-index: 100;
+  opacity: 0.7;
+  transition: background-color 0.3s ease, opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.status-dot:hover {
+  opacity: 1;
+}
+
+/* VRM viewer canvas container */
+.vrm-viewer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.vrm-viewer canvas {
+  display: block;
+  background: transparent !important;
+}
