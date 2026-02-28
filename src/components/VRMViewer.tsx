@@ -11,6 +11,8 @@ interface VRMViewerProps {
   emotion: Emotion;
   /** Whether the character is currently speaking */
   speaking: boolean;
+  /** External lip sync mouth open amount (0-1). Overrides speaking animation when set. */
+  mouthOpen?: number;
 }
 
 /**
@@ -20,7 +22,7 @@ interface VRMViewerProps {
  * loads a VRM model, and applies emotion-driven expressions and
  * idle animations. Designed to be the core visual element of ClawBody.
  */
-export default function VRMViewer({ modelUrl, emotion, speaking }: VRMViewerProps) {
+export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VRMViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const vrmRef = useRef<VRM | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -29,8 +31,10 @@ export default function VRMViewer({ modelUrl, emotion, speaking }: VRMViewerProp
   // Store latest props in refs for animation loop access
   const emotionRef = useRef(emotion);
   const speakingRef = useRef(speaking);
+  const mouthOpenRef = useRef(mouthOpen);
   useEffect(() => { emotionRef.current = emotion; }, [emotion]);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
+  useEffect(() => { mouthOpenRef.current = mouthOpen; }, [mouthOpen]);
 
   /**
    * Apply idle breathing animation to the VRM model.
@@ -54,18 +58,27 @@ export default function VRMViewer({ modelUrl, emotion, speaking }: VRMViewerProp
 
   /**
    * Simulate mouth movement when speaking.
-   * Uses a simple sine wave to open/close the jaw.
+   * If external mouthOpen is provided (from TTS lip sync), use that directly.
+   * Otherwise falls back to a simple sine wave oscillation.
    */
   const applySpeakingAnimation = useCallback((vrm: VRM, elapsed: number) => {
+    const externalMouth = mouthOpenRef.current;
+
+    // If external lip sync is driving the mouth, use it directly
+    if (externalMouth !== undefined && externalMouth > 0) {
+      vrm.expressionManager?.setValue("aa", externalMouth);
+      return;
+    }
+
     if (!speakingRef.current) {
       // Close mouth when not speaking
       vrm.expressionManager?.setValue("aa", 0);
       return;
     }
 
-    // Oscillate mouth open/close for speech
-    const mouthOpen = (Math.sin(elapsed * 12) + 1) * 0.3;
-    vrm.expressionManager?.setValue("aa", mouthOpen);
+    // Fallback: oscillate mouth open/close for speech
+    const openAmount = (Math.sin(elapsed * 12) + 1) * 0.3;
+    vrm.expressionManager?.setValue("aa", openAmount);
   }, []);
 
   // Initialize Three.js scene

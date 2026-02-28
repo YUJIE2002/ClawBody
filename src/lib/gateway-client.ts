@@ -19,6 +19,15 @@ export interface ChatMessage {
   timestamp?: number;
 }
 
+export interface ChatAttachment {
+  /** MIME type (e.g., "image/jpeg") */
+  type: string;
+  /** Base64-encoded data (without data URL prefix) or data URL */
+  data: string;
+  /** Optional filename */
+  name?: string;
+}
+
 export interface ChatEvent {
   type: "chat";
   /** Streamed text chunk */
@@ -175,14 +184,20 @@ export class GatewayClient {
   }
 
   /**
-   * Send a chat message to the AI.
+   * Send a chat message to the AI, optionally with image attachments.
    */
-  async sendChat(message: string): Promise<string> {
-    const result = await this.request<{ runId: string; status: string }>("chat.send", {
+  async sendChat(message: string, attachments?: ChatAttachment[]): Promise<string> {
+    const params: Record<string, unknown> = {
       sessionKey: this.options.sessionKey,
       message,
       deliver: false,
-    });
+    };
+
+    if (attachments && attachments.length > 0) {
+      params.attachments = attachments;
+    }
+
+    const result = await this.request<{ runId: string; status: string }>("chat.send", params);
     return result.runId;
   }
 

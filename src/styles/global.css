@@ -135,3 +135,140 @@ body::-webkit-scrollbar {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Voice & Camera UI ───────────────────────── */
+
+.chat-input-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-input-container .chat-input {
+  flex: 1;
+}
+
+/* Mic button */
+.mic-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: rgba(26, 26, 46, 0.85);
+  color: #e0e0e0;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.mic-btn:hover {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: #6366f1;
+}
+
+.mic-btn.listening {
+  background: rgba(239, 68, 68, 0.6);
+  border-color: #ef4444;
+  animation: pulse-mic 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-mic {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+/* Camera button */
+.camera-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: rgba(26, 26, 46, 0.85);
+  color: #e0e0e0;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.camera-btn:hover {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: #6366f1;
+}
+
+.camera-btn.active {
+  background: rgba(74, 222, 128, 0.3);
+  border-color: #4ade80;
+}
+
+/* TTS stop button */
+.tts-stop-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(26, 26, 46, 0.85);
+  color: #e0e0e0;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.tts-stop-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #ef4444;
+}
+
+/* Interim speech bubble */
+.interim-bubble {
+  position: fixed;
+  bottom: 52px;
+  left: 16px;
+  right: 16px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  pointer-events: none;
+  animation: fadeIn 0.15s ease;
+}
+
+/* Camera preview */
+.camera-preview {
+  position: fixed;
+  bottom: 52px;
+  right: 8px;
+  width: 80px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  z-index: 45;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.camera-preview:hover {
+  opacity: 1;
+}

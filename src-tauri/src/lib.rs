@@ -24,7 +24,28 @@ pub struct AppConfig {
     pub always_on_top: bool,
     pub character_scale: f64,
     pub auto_reconnect: bool,
+    // Voice & Camera
+    #[serde(default)]
+    pub voice_input_enabled: bool,
+    #[serde(default)]
+    pub voice_output_enabled: bool,
+    #[serde(default)]
+    pub camera_enabled: bool,
+    #[serde(default)]
+    pub tts_voice_name: String,
+    #[serde(default = "default_tts_rate")]
+    pub tts_rate: f64,
+    #[serde(default = "default_tts_pitch")]
+    pub tts_pitch: f64,
+    #[serde(default = "default_stt_language")]
+    pub stt_language: String,
+    #[serde(default)]
+    pub auto_send_voice: bool,
 }
+
+fn default_tts_rate() -> f64 { 1.0 }
+fn default_tts_pitch() -> f64 { 1.0 }
+fn default_stt_language() -> String { "en-US".to_string() }
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -38,6 +59,14 @@ impl Default for AppConfig {
             always_on_top: true,
             character_scale: 1.0,
             auto_reconnect: true,
+            voice_input_enabled: false,
+            voice_output_enabled: false,
+            camera_enabled: false,
+            tts_voice_name: String::new(),
+            tts_rate: 1.0,
+            tts_pitch: 1.0,
+            stt_language: "en-US".to_string(),
+            auto_send_voice: false,
         }
     }
 }

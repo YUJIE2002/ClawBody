@@ -17,6 +17,15 @@ export interface AppConfig {
   alwaysOnTop: boolean;
   characterScale: number;
   autoReconnect: boolean;
+  // Voice & Camera
+  voiceInputEnabled: boolean;
+  voiceOutputEnabled: boolean;
+  cameraEnabled: boolean;
+  ttsVoiceName: string;
+  ttsRate: number;
+  ttsPitch: number;
+  sttLanguage: string;
+  autoSendVoice: boolean;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -29,6 +38,15 @@ export const DEFAULT_CONFIG: AppConfig = {
   alwaysOnTop: true,
   characterScale: 1.0,
   autoReconnect: true,
+  // Voice & Camera defaults
+  voiceInputEnabled: false,
+  voiceOutputEnabled: false,
+  cameraEnabled: false,
+  ttsVoiceName: "",
+  ttsRate: 1.0,
+  ttsPitch: 1.0,
+  sttLanguage: "en-US",
+  autoSendVoice: true,
 };
 
 export async function loadConfig(): Promise<AppConfig> {

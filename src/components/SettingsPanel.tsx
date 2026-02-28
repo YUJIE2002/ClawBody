@@ -3,10 +3,11 @@ import { type AppConfig, saveConfig } from "../lib/config";
 import ModelTab from "./settings/ModelTab";
 import ConnectionTab from "./settings/ConnectionTab";
 import AppearanceTab from "./settings/AppearanceTab";
+import VoiceCameraTab from "./settings/VoiceCameraTab";
 import AboutTab from "./settings/AboutTab";
 import "../styles/settings.css";
 
-type TabId = "model" | "connection" | "appearance" | "about";
+type TabId = "model" | "connection" | "appearance" | "voicecamera" | "about";
 
 interface TabDef {
   id: TabId;
@@ -18,6 +19,7 @@ const TABS: TabDef[] = [
   { id: "model", icon: "📦", label: "模型" },
   { id: "connection", icon: "🔗", label: "连接" },
   { id: "appearance", icon: "🎨", label: "外观" },
+  { id: "voicecamera", icon: "🎙️", label: "语音" },
   { id: "about", icon: "ℹ️", label: "关于" },
 ];
 
@@ -83,6 +85,9 @@ export default function SettingsPanel({ config, onConfigUpdate, onClose }: Props
         )}
         {activeTab === "appearance" && (
           <AppearanceTab config={config} updateConfig={updateConfig} />
+        )}
+        {activeTab === "voicecamera" && (
+          <VoiceCameraTab config={config} updateConfig={updateConfig} />
         )}
         {activeTab === "about" && <AboutTab />}
       </main>

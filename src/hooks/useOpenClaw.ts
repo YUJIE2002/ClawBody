@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Emotion } from "../lib/emotion";
-import { GatewayClient, type ChatEvent } from "../lib/gateway-client";
+import { GatewayClient, type ChatEvent, type ChatAttachment } from "../lib/gateway-client";
 
 interface OpenClawState {
   connected: boolean;
@@ -10,8 +10,8 @@ interface OpenClawState {
   lastResponse: string;
   /** Whether AI is currently generating */
   thinking: boolean;
-  /** Send a text message to the AI */
-  sendMessage: (message: string) => Promise<void>;
+  /** Send a text message to the AI, optionally with attachments */
+  sendMessage: (message: string, attachments?: ChatAttachment[]) => Promise<void>;
   /** Abort current generation */
   abort: () => Promise<void>;
 }
@@ -104,7 +104,7 @@ export function useOpenClaw(gatewayUrl?: string, token?: string): OpenClawState 
     };
   }, [gatewayUrl, token, detectEmotion]);
 
-  const sendMessage = useCallback(async (message: string) => {
+  const sendMessage = useCallback(async (message: string, attachments?: ChatAttachment[]) => {
     const client = clientRef.current;
     if (!client?.connected) {
       console.warn("[ClawBody] Cannot send — not connected to gateway");
@@ -114,7 +114,7 @@ export function useOpenClaw(gatewayUrl?: string, token?: string): OpenClawState 
     setEmotion("thinking");
     responseBuffer.current = "";
     try {
-      await client.sendChat(message);
+      await client.sendChat(message, attachments);
     } catch (err) {
       console.error("[ClawBody] Failed to send message:", err);
       setThinking(false);

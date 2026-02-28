@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
@@ -6,6 +6,9 @@ import VRMViewer from "./components/VRMViewer";
 import ContextMenu, { type MenuItem } from "./components/ContextMenu";
 import SettingsPanel from "./components/SettingsPanel";
 import { useOpenClaw } from "./hooks/useOpenClaw";
+import { useVoiceInput } from "./hooks/useVoiceInput";
+import { useVoiceOutput } from "./hooks/useVoiceOutput";
+import { useCamera } from "./hooks/useCamera";
 import {
   type AppConfig,
   loadConfig,
@@ -24,6 +27,74 @@ export default function App() {
     config?.gatewayToken,
   );
   const [chatInput, setChatInput] = useState("");
+
+  // Track the previous lastResponse to detect new messages
+  const prevResponseRef = useRef("");
+
+  // ── Lip sync state ──
+  const [lipSyncMouth, setLipSyncMouth] = useState(0);
+
+  // ── Voice Output (TTS) ──
+  const voiceOutput = useVoiceOutput({
+    onLipSync: useCallback((amount: number) => {
+      setLipSyncMouth(amount);
+    }, []),
+    voiceName: config?.ttsVoiceName ?? "",
+    rate: config?.ttsRate ?? 1.0,
+    pitch: config?.ttsPitch ?? 1.0,
+  });
+
+  // ── Camera ──
+  const camera = useCamera({
+    width: 320,
+    height: 240,
+    quality: 0.6,
+  });
+
+  // ── Voice Input (STT) ──
+  const handleVoiceResult = useCallback((text: string) => {
+    if (!config?.autoSendVoice) {
+      // If auto-send is off, put text in chat input
+      setChatInput(text);
+      return;
+    }
+    // Auto-send with optional camera attachment
+    if (config?.cameraEnabled && camera.active) {
+      const frame = camera.snapshot();
+      if (frame) {
+        void sendMessage(text, [{
+          type: "image/jpeg",
+          data: frame,
+          name: "camera.jpg",
+        }]);
+        return;
+      }
+    }
+    void sendMessage(text);
+  }, [config?.autoSendVoice, config?.cameraEnabled, camera, sendMessage]);
+
+  const voiceInput = useVoiceInput({
+    onResult: handleVoiceResult,
+    lang: config?.sttLanguage ?? "en-US",
+    continuous: false,
+  });
+
+  // ── Auto-speak AI responses ──
+  useEffect(() => {
+    if (!config?.voiceOutputEnabled) return;
+    if (!lastResponse || lastResponse === prevResponseRef.current) return;
+    prevResponseRef.current = lastResponse;
+    voiceOutput.speak(lastResponse);
+  }, [lastResponse, config?.voiceOutputEnabled, voiceOutput]);
+
+  // ── Start/stop camera based on config ──
+  useEffect(() => {
+    if (config?.cameraEnabled && !camera.active) {
+      void camera.start();
+    } else if (!config?.cameraEnabled && camera.active) {
+      camera.stop();
+    }
+  }, [config?.cameraEnabled, camera]);
 
   // Load config on mount
   useEffect(() => {
@@ -66,7 +137,7 @@ export default function App() {
       if (e.button !== 0) return;
       const target = e.target as HTMLElement;
       // Don't drag when clicking on interactive elements
-      if (target.closest("button, a, input, select, textarea, .context-menu, .settings-panel")) return;
+      if (target.closest("button, a, input, select, textarea, video, .context-menu, .settings-panel, .camera-preview")) return;
       appWindow.startDragging();
     };
     document.addEventListener("mousedown", handleMouseDown);
@@ -106,6 +177,26 @@ export default function App() {
 
   const handleConfigUpdate = (newConfig: AppConfig) => {
     setConfig(newConfig);
+  };
+
+  const handleSendChat = () => {
+    const text = chatInput.trim();
+    if (!text) return;
+
+    if (config?.cameraEnabled && camera.active) {
+      const frame = camera.snapshot();
+      if (frame) {
+        void sendMessage(text, [{
+          type: "image/jpeg",
+          data: frame,
+          name: "camera.jpg",
+        }]);
+        setChatInput("");
+        return;
+      }
+    }
+    void sendMessage(text);
+    setChatInput("");
   };
 
   const menuItems: MenuItem[] = [
@@ -162,7 +253,12 @@ export default function App() {
         height: "100%",
         position: "relative",
       }}>
-        <VRMViewer modelUrl={modelUrl} emotion={emotion} speaking={speaking} />
+        <VRMViewer
+          modelUrl={modelUrl}
+          emotion={emotion}
+          speaking={speaking || voiceOutput.speaking}
+          mouthOpen={voiceOutput.speaking ? lipSyncMouth : undefined}
+        />
         <div
           style={{
             position: "absolute", top: 0, left: 0,
@@ -179,9 +275,40 @@ export default function App() {
         </div>
       )}
 
+      {/* Voice input interim text */}
+      {voiceInput.listening && voiceInput.interimText && (
+        <div className="interim-bubble">
+          🎤 {voiceInput.interimText}
+        </div>
+      )}
+
+      {/* Camera preview */}
+      {config?.cameraEnabled && camera.active && (
+        <div className="camera-preview">
+          <video
+            ref={camera.videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }}
+          />
+        </div>
+      )}
+
       {/* Chat input — click to type, Enter to send */}
       {connected && (
         <div className="chat-input-container">
+          {/* Mic button */}
+          {config?.voiceInputEnabled && voiceInput.supported && (
+            <button
+              className={`mic-btn${voiceInput.listening ? " listening" : ""}`}
+              onClick={voiceInput.toggleListening}
+              title={voiceInput.listening ? "Stop listening" : "Start listening"}
+            >
+              🎤
+            </button>
+          )}
+
           <input
             className="chat-input"
             type="text"
@@ -189,12 +316,39 @@ export default function App() {
             onChange={(e) => setChatInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && chatInput.trim()) {
-                sendMessage(chatInput.trim());
-                setChatInput("");
+                handleSendChat();
               }
             }}
-            placeholder="Say something..."
+            placeholder={voiceInput.listening ? "Listening..." : "Say something..."}
           />
+
+          {/* Camera toggle */}
+          {config?.cameraEnabled && (
+            <button
+              className={`camera-btn${camera.active ? " active" : ""}`}
+              onClick={() => {
+                if (camera.active) {
+                  camera.stop();
+                } else {
+                  void camera.start();
+                }
+              }}
+              title={camera.active ? "Camera on" : "Camera off"}
+            >
+              📷
+            </button>
+          )}
+
+          {/* TTS stop button when speaking */}
+          {voiceOutput.speaking && (
+            <button
+              className="tts-stop-btn"
+              onClick={voiceOutput.stop}
+              title="Stop speaking"
+            >
+              🔇
+            </button>
+          )}
         </div>
       )}
 
