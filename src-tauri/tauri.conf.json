@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nickcamillo/tauri-settings-schema/refs/heads/main/schema/2.1.1.json",
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri-settings-schema/refs/heads/main/schema/2.1.1.json",
   "productName": "ClawBody",
   "version": "0.1.0",
   "identifier": "com.openclaw.clawbody",

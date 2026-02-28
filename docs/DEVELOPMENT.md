@@ -38,7 +38,7 @@ xcode-select --install
 
 ```bash
 # Clone the repository
-git clone https://github.com/guyujie/clawbody.git
+git clone https://github.com/YUJIE2002/ClawBody.git
 cd clawbody
 
 # Install frontend dependencies

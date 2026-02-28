@@ -25,7 +25,7 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed instructions.
 
 ## 🐛 Reporting Bugs
 
-Use the [Bug Report](https://github.com/guyujie/clawbody/issues/new?template=bug_report.md) template. Include:
+Use the [Bug Report](https://github.com/YUJIE2002/ClawBody/issues/new?template=bug_report.md) template. Include:
 
 - Your OS and version
 - Steps to reproduce
@@ -34,7 +34,7 @@ Use the [Bug Report](https://github.com/guyujie/clawbody/issues/new?template=bug
 
 ## 💡 Requesting Features
 
-Use the [Feature Request](https://github.com/guyujie/clawbody/issues/new?template=feature_request.md) template. We especially welcome:
+Use the [Feature Request](https://github.com/YUJIE2002/ClawBody/issues/new?template=feature_request.md) template. We especially welcome:
 
 - New emotion expressions
 - Animation improvements

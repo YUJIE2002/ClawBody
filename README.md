@@ -8,10 +8,10 @@
 
 *让你的 AI 拥有一个身体 — 桌面 3D 虚拟伙伴，由 AI 驱动。*
 
-[![CI](https://github.com/guyujie/clawbody/actions/workflows/ci.yml/badge.svg)](https://github.com/guyujie/clawbody/actions/workflows/ci.yml)
+[![CI](https://github.com/YUJIE2002/ClawBody/actions/workflows/ci.yml/badge.svg)](https://github.com/YUJIE2002/ClawBody/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2-orange)](https://tauri.app)
-[![Powered by OpenClaw](https://img.shields.io/badge/Powered%20by-OpenClaw-purple)](https://github.com/nickcamillo/openclaw)
+[![Powered by OpenClaw](https://img.shields.io/badge/Powered%20by-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
 <br />
 
@@ -28,7 +28,7 @@
 
 ClawBody puts a **3D VRM avatar on your desktop** that acts as the visual body of your AI agent. It sits as a transparent overlay — no window chrome, no background — just your character floating on screen.
 
-The character is connected to [OpenClaw](https://github.com/nickcamillo/openclaw), an AI agent framework. When the AI thinks, the character thinks. When it speaks, the mouth moves. When it's happy, it smiles. It's not a static pet — it's a living interface to your AI.
+The character is connected to [OpenClaw](https://github.com/openclaw/openclaw), an AI agent framework. When the AI thinks, the character thinks. When it speaks, the mouth moves. When it's happy, it smiles. It's not a static pet — it's a living interface to your AI.
 
 ```
 ┌──────────────────────────┐
@@ -71,7 +71,7 @@ The character is connected to [OpenClaw](https://github.com/nickcamillo/openclaw
 | **Desktop Shell** | [Tauri v2](https://tauri.app) (Rust) | Lightweight native window with transparency |
 | **3D Rendering** | [Three.js](https://threejs.org/) + [@pixiv/three-vrm](https://github.com/pixiv/three-vrm) | VRM character rendering and animation |
 | **Frontend** | React + TypeScript | UI components and state management |
-| **AI Brain** | [OpenClaw](https://github.com/nickcamillo/openclaw) | Agent framework — emotions, speech, tools |
+| **AI Brain** | [OpenClaw](https://github.com/openclaw/openclaw) | Agent framework — emotions, speech, tools |
 
 ## Quick Start
 
@@ -85,7 +85,7 @@ The character is connected to [OpenClaw](https://github.com/nickcamillo/openclaw
 
 ```bash
 # Clone the repository
-git clone https://github.com/guyujie/clawbody.git
+git clone https://github.com/YUJIE2002/ClawBody.git
 cd clawbody
 
 # Install dependencies
@@ -181,7 +181,7 @@ Whether you're into **3D rendering**, **Rust**, **AI**, or **UI/UX** — there's
 
 ## Acknowledgments
 
-- [OpenClaw](https://github.com/nickcamillo/openclaw) — The AI agent framework that powers the brain
+- [OpenClaw](https://github.com/openclaw/openclaw) — The AI agent framework that powers the brain
 - [Tauri](https://tauri.app) — Lightweight desktop app framework
 - [@pixiv/three-vrm](https://github.com/pixiv/three-vrm) — VRM rendering for Three.js
 - [VRoid Hub](https://hub.vroid.com/) — VRM model community
@@ -190,7 +190,7 @@ Whether you're into **3D rendering**, **Rust**, **AI**, or **UI/UX** — there's
 
 <div align="center">
 
-**Powered by [OpenClaw](https://github.com/nickcamillo/openclaw)** ⚡
+**Powered by [OpenClaw](https://github.com/openclaw/openclaw)** ⚡
 
 *Built with obsessive attention to detail by humans and their AI children.*
 
@@ -203,7 +203,7 @@ Whether you're into **3D rendering**, **Rust**, **AI**, or **UI/UX** — there's
 
 ## ClawBody — 让你的 AI 拥有一个身体
 
-ClawBody 是一个桌面伴侣应用，它在你的桌面上渲染一个 3D VRM 虚拟角色。这个角色由 [OpenClaw](https://github.com/nickcamillo/openclaw) AI 智能体框架驱动。
+ClawBody 是一个桌面伴侣应用，它在你的桌面上渲染一个 3D VRM 虚拟角色。这个角色由 [OpenClaw](https://github.com/openclaw/openclaw) AI 智能体框架驱动。
 
 ### 特性
 
@@ -224,7 +224,7 @@ ClawBody 是一个桌面伴侣应用，它在你的桌面上渲染一个 3D VRM 
 ### 快速开始
 
 ```bash
-git clone https://github.com/guyujie/clawbody.git
+git clone https://github.com/YUJIE2002/ClawBody.git
 cd clawbody
 npm install
 cargo tauri dev
