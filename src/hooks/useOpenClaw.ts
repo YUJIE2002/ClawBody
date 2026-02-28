@@ -34,7 +34,7 @@ export function useOpenClaw(): OpenClawState {
   const [emotion, setEmotion] = useState<Emotion>("neutral");
   const [speaking, setSpeaking] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const gatewayUrl =
     import.meta.env.VITE_OPENCLAW_WS_URL ?? "ws://localhost:4100/ws";

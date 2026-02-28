@@ -90,13 +90,26 @@ export function disposeVRM(vrm: VRM): void {
 
 /**
  * Get metadata from a loaded VRM model.
+ * Handles both VRM 0.x and VRM 1.x metadata formats.
  */
 export function getVRMInfo(vrm: VRM): Record<string, string | undefined> {
   const meta = vrm.meta;
+  if (!meta) return {};
+
+  if (meta.metaVersion === "1") {
+    return {
+      name: meta.name,
+      version: meta.metaVersion,
+      authors: meta.authors?.join(", "),
+      licenseUrl: meta.licenseUrl,
+    };
+  }
+
+  // VRM 0.x
   return {
-    name: meta?.name,
-    version: meta?.metaVersion,
-    authors: meta?.authors?.join(", "),
-    licenseUrl: meta?.licenseUrl,
+    name: meta.title,
+    version: meta.metaVersion,
+    authors: meta.author,
+    licenseUrl: meta.otherLicenseUrl,
   };
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import VRMViewer from "./components/VRMViewer";
 import { useOpenClaw } from "./hooks/useOpenClaw";
 
@@ -13,14 +14,19 @@ export default function App() {
   const { connected, emotion, speaking } = useOpenClaw();
   const [modelUrl] = useState("/models/default.vrm");
 
-  // Enable window dragging on the transparent area
+  // Enable window dragging on the transparent area (Tauri v2 API)
   useEffect(() => {
+    const appWindow = getCurrentWindow();
+
     const handleMouseDown = (e: MouseEvent) => {
       // Only drag when clicking on empty space (not on UI elements)
       const target = e.target as HTMLElement;
-      if (target.id === "root" || target.classList.contains("drag-region")) {
-        // @ts-expect-error Tauri window drag API
-        window.__TAURI__?.window?.getCurrentWindow().startDragging();
+      if (
+        target.closest(".vrm-viewer") ||
+        target.id === "root" ||
+        target.classList.contains("drag-region")
+      ) {
+        appWindow.startDragging();
       }
     };
     document.addEventListener("mousedown", handleMouseDown);

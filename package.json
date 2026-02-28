@@ -10,10 +10,12 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "setup": "node scripts/download-model.mjs"
   },
   "dependencies": {
     "@pixiv/three-vrm": "^3.3.3",
+    "@tauri-apps/api": "^2.10.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.172.0"

@@ -56,6 +56,13 @@ pub fn run() {
                 use tauri::TitleBarStyle;
                 let _ = window.set_title_bar_style(TitleBarStyle::Overlay);
             }
+            #[cfg(target_os = "windows")]
+            {
+                // On Windows, transparent + decorations:false is handled by Tauri.
+                // The webview background transparency is controlled by the frontend CSS.
+                // No additional native setup required for basic transparency.
+                let _ = &window; // suppress unused warning
+            }
             // Ensure window is ready
             let _ = window.show();
             Ok(())

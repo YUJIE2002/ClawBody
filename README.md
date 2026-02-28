@@ -86,19 +86,24 @@ The character is connected to [OpenClaw](https://github.com/openclaw/openclaw), 
 ```bash
 # Clone the repository
 git clone https://github.com/YUJIE2002/ClawBody.git
-cd clawbody
+cd ClawBody
 
 # Install dependencies
 npm install
+
+# Download a test VRM model (~10MB)
+npm run setup
 
 # Run in development mode
 cargo tauri dev
 ```
 
-### Add a VRM Model
+### Custom VRM Model
+
+The `npm run setup` command downloads a default test model. To use your own:
 
 1. Download a model from [VRoid Hub](https://hub.vroid.com/) or create one with [VRoid Studio](https://vroid.com/en/studio)
-2. Place it at `public/models/default.vrm`
+2. Place it at `public/models/default.vrm` (replaces the test model)
 3. Restart the app — your character appears!
 
 ## Architecture
@@ -225,8 +230,9 @@ ClawBody 是一个桌面伴侣应用，它在你的桌面上渲染一个 3D VRM 
 
 ```bash
 git clone https://github.com/YUJIE2002/ClawBody.git
-cd clawbody
+cd ClawBody
 npm install
+npm run setup  # 下载测试用 VRM 模型
 cargo tauri dev
 ```
 
