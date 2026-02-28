@@ -29,7 +29,7 @@ interface OpenClawState {
  * The gateway URL defaults to ws://localhost:4100/ws but can be
  * configured via the VITE_OPENCLAW_WS_URL environment variable.
  */
-export function useOpenClaw(): OpenClawState {
+export function useOpenClaw(gatewayUrlOverride?: string): OpenClawState {
   const [connected, setConnected] = useState(false);
   const [emotion, setEmotion] = useState<Emotion>("neutral");
   const [speaking, setSpeaking] = useState(false);
@@ -37,7 +37,7 @@ export function useOpenClaw(): OpenClawState {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const gatewayUrl =
-    import.meta.env.VITE_OPENCLAW_WS_URL ?? "ws://localhost:4100/ws";
+    gatewayUrlOverride ?? import.meta.env.VITE_OPENCLAW_WS_URL ?? "ws://localhost:4100/ws";
 
   const connect = useCallback(() => {
     // Don't reconnect if already open

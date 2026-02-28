@@ -1,0 +1,26 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for ClawBody",
+  "windows": ["main", "settings"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-create",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-focus",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-is-visible",
+    "core:window:allow-is-always-on-top",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "shell:default",
+    "dialog:default",
+    "dialog:allow-open"
+  ]
+}
