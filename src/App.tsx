@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
@@ -88,10 +88,14 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, []);
 
-  // Context menu handler
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY });
+  // Context menu handler — use window-level listener to catch events over canvas
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener("contextmenu", handleContextMenu);
+    return () => window.removeEventListener("contextmenu", handleContextMenu);
   }, []);
 
   const menuItems: MenuItem[] = [
@@ -105,7 +109,7 @@ export default function App() {
   const scale = config?.characterScale ?? 1.0;
 
   return (
-    <div className="app" onContextMenu={handleContextMenu}>
+    <div className="app">
       {/* Status indicator */}
       <div
         className="status-dot"
