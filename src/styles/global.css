@@ -79,3 +79,59 @@ body::-webkit-scrollbar {
   display: block;
   background: transparent !important;
 }
+
+/* ── Chat UI ─────────────────────────────────── */
+
+.chat-bubble {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  background: rgba(26, 26, 46, 0.9);
+  color: #e0e0e0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  max-height: 120px;
+  overflow-y: auto;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  pointer-events: none;
+  animation: fadeIn 0.2s ease;
+}
+
+.chat-input-container {
+  position: fixed;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 50;
+}
+
+.chat-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(26, 26, 46, 0.85);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 20px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.2s;
+}
+
+.chat-input:focus {
+  border-color: #6366f1;
+}
+
+.chat-input::placeholder {
+  color: #666;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

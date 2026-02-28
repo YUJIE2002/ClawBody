@@ -19,7 +19,11 @@ export default function App() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
-  const { connected, emotion, speaking } = useOpenClaw(config?.gatewayUrl);
+  const { connected, emotion, speaking, lastResponse, thinking, sendMessage } = useOpenClaw(
+    config?.gatewayUrl,
+    config?.gatewayToken,
+  );
+  const [chatInput, setChatInput] = useState("");
 
   // Load config on mount
   useEffect(() => {
@@ -166,6 +170,33 @@ export default function App() {
           }}
         />
       </div>
+
+      {/* Chat bubble — shows AI response */}
+      {(lastResponse || thinking) && (
+        <div className="chat-bubble">
+          {thinking && !lastResponse ? "🤔 Thinking..." : lastResponse.slice(0, 200)}
+          {lastResponse.length > 200 && "..."}
+        </div>
+      )}
+
+      {/* Chat input — click to type, Enter to send */}
+      {connected && (
+        <div className="chat-input-container">
+          <input
+            className="chat-input"
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && chatInput.trim()) {
+                sendMessage(chatInput.trim());
+                setChatInput("");
+              }
+            }}
+            placeholder="Say something..."
+          />
+        </div>
+      )}
 
       {contextMenu && (
         <ContextMenu

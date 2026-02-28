@@ -39,7 +39,17 @@ export default function ConnectionTab({ config, updateConfig }: Props) {
           type="text"
           value={config.gatewayUrl}
           onChange={(e) => updateConfig({ gatewayUrl: e.target.value })}
-          placeholder="ws://localhost:4100/ws"
+          placeholder="ws://localhost:18789"
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Gateway Token</label>
+        <input
+          type="password"
+          value={config.gatewayToken}
+          onChange={(e) => updateConfig({ gatewayToken: e.target.value })}
+          placeholder="Paste your gateway token here"
         />
       </div>
 
@@ -63,8 +73,8 @@ export default function ConnectionTab({ config, updateConfig }: Props) {
       </div>
 
       <div className="info-box">
-        <p>💡 Make sure your OpenClaw gateway is running. Default port is 4100.</p>
-        <p>If you haven't set up OpenClaw yet, visit <a href="https://github.com/openclaw/openclaw" target="_blank" rel="noreferrer">github.com/openclaw/openclaw</a></p>
+        <p>💡 Default Gateway port is <strong>18789</strong>. Find your token in <code>~/.openclaw/openclaw.json</code></p>
+        <p>If running remotely, use SSH tunnel: <code>ssh -L 18789:localhost:18789 your-server</code></p>
       </div>
     </div>
   );

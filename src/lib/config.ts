@@ -10,6 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 export interface AppConfig {
   modelPath: string;
   gatewayUrl: string;
+  gatewayToken: string;
   windowWidth: number;
   windowHeight: number;
   opacity: number;
@@ -20,7 +21,8 @@ export interface AppConfig {
 
 export const DEFAULT_CONFIG: AppConfig = {
   modelPath: "",
-  gatewayUrl: "ws://localhost:4100/ws",
+  gatewayUrl: "ws://localhost:18789",
+  gatewayToken: "",
   windowWidth: 400,
   windowHeight: 600,
   opacity: 1.0,

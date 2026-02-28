@@ -1,128 +1,147 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { Emotion } from "../lib/emotion";
-import { mapToEmotion } from "../lib/emotion";
-
-/** Messages received from the OpenClaw gateway */
-interface OpenClawMessage {
-  type: "emotion" | "speak" | "action" | "idle";
-  payload: Record<string, unknown>;
-}
+import { GatewayClient, type ChatEvent } from "../lib/gateway-client";
 
 interface OpenClawState {
-  /** Whether we're connected to the OpenClaw gateway */
   connected: boolean;
-  /** Current emotion state of the AI */
   emotion: Emotion;
-  /** Whether the AI is currently speaking */
   speaking: boolean;
-  /** Send a message to the OpenClaw gateway */
-  send: (message: Record<string, unknown>) => void;
+  /** Last AI response text */
+  lastResponse: string;
+  /** Whether AI is currently generating */
+  thinking: boolean;
+  /** Send a text message to the AI */
+  sendMessage: (message: string) => Promise<void>;
+  /** Abort current generation */
+  abort: () => Promise<void>;
 }
 
 /**
- * useOpenClaw — WebSocket bridge to the OpenClaw agent gateway
+ * useOpenClaw — Bridge between ClawBody and the OpenClaw Gateway.
  *
- * Connects to the local OpenClaw gateway WebSocket endpoint,
- * receives emotion/speech/action events, and exposes state
- * for the VRM renderer to consume.
- *
- * The gateway URL defaults to ws://localhost:4100/ws but can be
- * configured via the VITE_OPENCLAW_WS_URL environment variable.
+ * Connects via WebSocket, sends user messages, receives streamed AI responses,
+ * and extracts emotions from the response text to drive the VRM character.
  */
-export function useOpenClaw(gatewayUrlOverride?: string): OpenClawState {
+export function useOpenClaw(gatewayUrl?: string, token?: string): OpenClawState {
   const [connected, setConnected] = useState(false);
   const [emotion, setEmotion] = useState<Emotion>("neutral");
   const [speaking, setSpeaking] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [lastResponse, setLastResponse] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const clientRef = useRef<GatewayClient | null>(null);
+  const responseBuffer = useRef("");
 
-  const gatewayUrl =
-    gatewayUrlOverride ?? import.meta.env.VITE_OPENCLAW_WS_URL ?? "ws://localhost:4100/ws";
+  // Detect emotion from AI response text
+  const detectEmotion = useCallback((text: string): Emotion => {
+    const lower = text.toLowerCase();
+    // Simple keyword-based emotion detection
+    // TODO: Use AI-powered emotion detection or explicit emotion tags
+    if (/[😂🤣😄😁😊😀laugh|haha|lol|funny]/i.test(lower)) return "happy";
+    if (/[😢😭😞sad|sorry|unfortunat|regret]/i.test(lower)) return "sad";
+    if (/[😠😤angry|frustrat|annoy|damn]/i.test(lower)) return "angry";
+    if (/[😲😮🤯surprise|wow|amazing|incredible|whoa]/i.test(lower)) return "surprised";
+    if (/[🤔think|consider|hmm|let me|analyz|ponder]/i.test(lower)) return "thinking";
+    if (/[😳blush|embarrass|shy|awkward]/i.test(lower)) return "embarrassed";
+    if (/[😴💤sleep|tired|yawn|exhausted]/i.test(lower)) return "sleepy";
+    return "neutral";
+  }, []);
 
-  const connect = useCallback(() => {
-    // Don't reconnect if already open
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+  // Initialize gateway client
+  useEffect(() => {
+    if (!gatewayUrl) return;
 
-    try {
-      const ws = new WebSocket(gatewayUrl);
-      wsRef.current = ws;
+    const client = new GatewayClient({
+      url: gatewayUrl,
+      token: token ?? "",
+      sessionKey: "clawbody:main",
+      autoReconnect: true,
 
-      ws.onopen = () => {
-        console.log("[ClawBody] Connected to OpenClaw gateway");
+      onConnect: () => {
         setConnected(true);
-      };
+        setEmotion("happy");
+        // Briefly show happy emotion on connect, then return to neutral
+        setTimeout(() => setEmotion("neutral"), 2000);
+      },
 
-      ws.onmessage = (event) => {
-        try {
-          const msg: OpenClawMessage = JSON.parse(event.data);
-          handleMessage(msg);
-        } catch (err) {
-          console.warn("[ClawBody] Failed to parse gateway message:", err);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log("[ClawBody] Disconnected from OpenClaw gateway");
+      onDisconnect: () => {
         setConnected(false);
-        wsRef.current = null;
-        // Auto-reconnect after 3 seconds
-        reconnectTimer.current = setTimeout(connect, 3000);
-      };
-
-      ws.onerror = (err) => {
-        console.error("[ClawBody] WebSocket error:", err);
-        ws.close();
-      };
-    } catch (err) {
-      console.error("[ClawBody] Failed to connect:", err);
-      reconnectTimer.current = setTimeout(connect, 3000);
-    }
-  }, [gatewayUrl]);
-
-  const handleMessage = (msg: OpenClawMessage) => {
-    switch (msg.type) {
-      case "emotion":
-        setEmotion(mapToEmotion(msg.payload.emotion as string));
-        break;
-
-      case "speak":
-        setSpeaking(true);
-        // Auto-stop speaking after duration (if provided)
-        if (typeof msg.payload.duration === "number") {
-          setTimeout(() => setSpeaking(false), msg.payload.duration as number);
-        }
-        break;
-
-      case "idle":
         setSpeaking(false);
-        break;
+        setThinking(false);
+      },
 
-      case "action":
-        // Future: handle gestures, animations, etc.
-        console.log("[ClawBody] Action received:", msg.payload);
-        break;
+      onChat: (event: ChatEvent) => {
+        if (event.done) {
+          // Response complete
+          const finalText = event.fullText ?? responseBuffer.current;
+          setLastResponse(finalText);
+          setEmotion(detectEmotion(finalText));
+          setSpeaking(false);
+          setThinking(false);
+          responseBuffer.current = "";
+        } else if (event.text) {
+          // Streaming chunk
+          responseBuffer.current += event.text;
+          setSpeaking(true);
+          setThinking(false);
+          // Update emotion periodically during streaming
+          if (responseBuffer.current.length % 100 < event.text.length) {
+            setEmotion(detectEmotion(responseBuffer.current));
+          }
+        }
+      },
 
-      default:
-        console.log("[ClawBody] Unknown message type:", msg);
-    }
-  };
+      onError: (err) => {
+        console.error("[ClawBody] Gateway error:", err);
+      },
+    });
 
-  const send = useCallback((message: Record<string, unknown>) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
-    } else {
+    clientRef.current = client;
+    client.connect();
+
+    return () => {
+      client.disconnect();
+      clientRef.current = null;
+    };
+  }, [gatewayUrl, token, detectEmotion]);
+
+  const sendMessage = useCallback(async (message: string) => {
+    const client = clientRef.current;
+    if (!client?.connected) {
       console.warn("[ClawBody] Cannot send — not connected to gateway");
+      return;
+    }
+    setThinking(true);
+    setEmotion("thinking");
+    responseBuffer.current = "";
+    try {
+      await client.sendChat(message);
+    } catch (err) {
+      console.error("[ClawBody] Failed to send message:", err);
+      setThinking(false);
+      setEmotion("neutral");
     }
   }, []);
 
-  // Connect on mount, cleanup on unmount
-  useEffect(() => {
-    connect();
-    return () => {
-      clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
-    };
-  }, [connect]);
+  const abort = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client?.connected) return;
+    try {
+      await client.abortChat();
+      setSpeaking(false);
+      setThinking(false);
+      setEmotion("neutral");
+    } catch (err) {
+      console.error("[ClawBody] Failed to abort:", err);
+    }
+  }, []);
 
-  return { connected, emotion, speaking, send };
+  return {
+    connected,
+    emotion,
+    speaking,
+    lastResponse,
+    thinking,
+    sendMessage,
+    abort,
+  };
 }

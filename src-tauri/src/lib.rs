@@ -17,6 +17,7 @@ use tauri::Manager;
 pub struct AppConfig {
     pub model_path: String,
     pub gateway_url: String,
+    pub gateway_token: String,
     pub window_width: u32,
     pub window_height: u32,
     pub opacity: f64,
@@ -29,7 +30,8 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             model_path: String::new(),
-            gateway_url: "ws://localhost:4100/ws".to_string(),
+            gateway_url: "ws://localhost:18789".to_string(),
+            gateway_token: String::new(),
             window_width: 400,
             window_height: 600,
             opacity: 1.0,
