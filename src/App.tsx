@@ -88,14 +88,18 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, []);
 
-  // Context menu handler — use window-level listener to catch events over canvas
+  // Context menu handler — capture phase to intercept before WebView default menu
   useEffect(() => {
-    const handleContextMenu = (e: MouseEvent) => {
+    const handleContextMenu = (e: Event) => {
       e.preventDefault();
-      setContextMenu({ x: e.clientX, y: e.clientY });
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      const me = e as MouseEvent;
+      setContextMenu({ x: me.clientX, y: me.clientY });
+      return false;
     };
-    window.addEventListener("contextmenu", handleContextMenu);
-    return () => window.removeEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("contextmenu", handleContextMenu, true);
+    return () => document.removeEventListener("contextmenu", handleContextMenu, true);
   }, []);
 
   const menuItems: MenuItem[] = [
