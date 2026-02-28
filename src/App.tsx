@@ -54,12 +54,15 @@ export default function App() {
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
-  // Window dragging on left-click (only when settings not shown)
+  // Window dragging on left-click — only on empty areas, not on buttons/menus
   useEffect(() => {
     if (showSettings) return;
     const appWindow = getCurrentWindow();
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      // Don't drag when clicking on interactive elements
+      if (target.closest("button, a, input, select, textarea, .context-menu, .settings-panel")) return;
       appWindow.startDragging();
     };
     document.addEventListener("mousedown", handleMouseDown);
