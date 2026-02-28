@@ -267,19 +267,6 @@ pub fn run() {
                 }
             }
 
-            // Disable WebView2 default context menu on Windows
-            #[cfg(target_os = "windows")]
-            {
-                window.with_webview(|webview| {
-                    unsafe {
-                        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings;
-                        let core = webview.controller().CoreWebView2().unwrap();
-                        let settings: ICoreWebView2Settings = core.Settings().unwrap();
-                        settings.SetAreDefaultContextMenusEnabled(false).unwrap();
-                    }
-                }).unwrap_or_default();
-            }
-
             #[cfg(target_os = "macos")]
             {
                 use tauri::TitleBarStyle;

@@ -88,19 +88,12 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, []);
 
-  // Context menu handler — capture phase to intercept before WebView default menu
-  useEffect(() => {
-    const handleContextMenu = (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      const me = e as MouseEvent;
-      setContextMenu({ x: me.clientX, y: me.clientY });
-      return false;
-    };
-    document.addEventListener("contextmenu", handleContextMenu, true);
-    return () => document.removeEventListener("contextmenu", handleContextMenu, true);
-  }, []);
+  // Context menu handler
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
 
   const menuItems: MenuItem[] = [
     { label: "⚙️  Settings", action: () => { openSettings(); } },
@@ -113,7 +106,7 @@ export default function App() {
   const scale = config?.characterScale ?? 1.0;
 
   return (
-    <div className="app">
+    <div className="app" onContextMenu={handleContextMenu}>
       {/* Status indicator */}
       <div
         className="status-dot"
@@ -129,9 +122,22 @@ export default function App() {
           transformOrigin: "center bottom",
           width: "100%",
           height: "100%",
+          position: "relative",
         }}
       >
         <VRMViewer modelUrl={modelUrl} emotion={emotion} speaking={speaking} />
+        {/* Transparent interaction layer above canvas to capture right-click */}
+        <div
+          onContextMenu={handleContextMenu}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            zIndex: 10,
+          }}
+        />
       </div>
 
       {/* Context menu overlay */}
