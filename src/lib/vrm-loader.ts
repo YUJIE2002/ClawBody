@@ -46,8 +46,8 @@ export async function loadVRM(
           reject(new Error(`File is not a valid VRM model: ${url}`));
           return;
         }
-        // Face the camera by default
-        vrm.scene.rotation.y = Math.PI;
+        // Default orientation — face camera
+        vrm.scene.rotation.y = 0;
         resolve(vrm);
       },
       (event) => {

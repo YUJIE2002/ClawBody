@@ -38,7 +38,7 @@ export default function VRMViewer({ modelUrl, emotion, speaking }: VRMViewerProp
    */
   const applyIdleAnimation = useCallback((vrm: VRM, elapsed: number) => {
     // Gentle breathing motion
-    const breathe = Math.sin(elapsed * 1.5) * 0.005;
+    const breathe = Math.sin(elapsed * 1.5) * 0.001;
     const hips = vrm.humanoid?.getNormalizedBoneNode("hips");
     if (hips) {
       hips.position.y += breathe;
@@ -125,8 +125,9 @@ export default function VRMViewer({ modelUrl, emotion, speaking }: VRMViewerProp
           return;
         }
 
-        // VRM models face +Z by default, rotate to face camera
-        vrm.scene.rotation.y = Math.PI;
+        // VRM models face +Z by default — try both orientations
+        // Some models need PI rotation, others don't
+        vrm.scene.rotation.y = 0;
         scene.add(vrm.scene);
         vrmRef.current = vrm;
 
