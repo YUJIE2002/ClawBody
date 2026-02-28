@@ -149,11 +149,11 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    // In dev mode, use the dev server URL; in production, use the built files
+    // Use query param to signal settings mode
     let url = if cfg!(debug_assertions) {
-        tauri::WebviewUrl::External("http://localhost:1420".parse().unwrap())
+        tauri::WebviewUrl::External("http://localhost:1420?settings=1".parse().unwrap())
     } else {
-        tauri::WebviewUrl::App("index.html".into())
+        tauri::WebviewUrl::App("index.html?settings=1".into())
     };
 
     tauri::WebviewWindowBuilder::new(
