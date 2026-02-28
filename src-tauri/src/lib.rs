@@ -149,10 +149,17 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
+    // In dev mode, use the dev server URL; in production, use the built files
+    let url = if cfg!(debug_assertions) {
+        tauri::WebviewUrl::External("http://localhost:1420".parse().unwrap())
+    } else {
+        tauri::WebviewUrl::App("index.html".into())
+    };
+
     tauri::WebviewWindowBuilder::new(
         &app,
         "settings",
-        tauri::WebviewUrl::App("index.html".into()),
+        url,
     )
     .title("ClawBody Settings")
     .inner_size(780.0, 560.0)

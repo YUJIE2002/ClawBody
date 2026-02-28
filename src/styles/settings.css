@@ -4,9 +4,17 @@
   display: flex;
   width: 100%;
   height: 100vh;
-  background: #1a1a2e;
+  background: #1a1a2e !important;
   color: #e0e0e0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Override transparent body for settings window */
+}
+
+/* Override transparent background in settings window */
+html:has(.settings-panel),
+html:has(.settings-panel) body,
+html:has(.settings-panel) #root {
+  background: #1a1a2e !important;
 }
 
 /* ── Sidebar ───────────────────────────────────── */
