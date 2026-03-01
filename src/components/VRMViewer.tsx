@@ -5,7 +5,12 @@ import { VRMLoaderPlugin, VRM } from "@pixiv/three-vrm";
 import type { Emotion } from "../lib/emotion";
 import type { PoseConfig, AnimationConfig, CameraConfig } from "../lib/config";
 import { DEFAULT_POSE, DEFAULT_ANIMATION, DEFAULT_CAMERA } from "../lib/config";
-import { createIdleScheduler, updateIdleScheduler, type IdleSchedulerState } from "../lib/idle-actions";
+import {
+  createIdleScheduler,
+  tickIdleScheduler,
+  type IdleSchedulerState,
+  type ActionOutput,
+} from "../lib/idle-actions";
 
 interface VRMViewerProps {
   modelUrl: string;
@@ -19,44 +24,105 @@ interface VRMViewerProps {
 
 const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
+/** Helper: get bone or null */
+function bone(vrm: VRM, name: string) {
+  return vrm.humanoid?.getNormalizedBoneNode(name) ?? null;
+}
+
 /**
- * Reset all animation-affected bones to rest pose.
- * Called at the START of every frame before any animation is applied.
- * This prevents += accumulation bugs across frames.
+ * The ONE place where all bone values are set each frame.
+ *
+ * Computes final value = restPose + baseAnimation + actionDelta
+ * and assigns with = (never +=). No accumulation possible.
  */
-function resetToRestPose(vrm: VRM, pose: PoseConfig, hipsBaseY: number) {
+function applyFrame(
+  vrm: VRM,
+  pose: PoseConfig,
+  hipsBaseY: number,
+  elapsed: number,
+  anim: AnimationConfig,
+  action: ActionOutput,
+  speaking: boolean,
+  mouthOpen: number | undefined,
+  animSpeed: number,
+) {
+  const breathScale = anim.breathingIntensity / 100;
+  const headScale = anim.headSwayIntensity / 100;
+  const speed = anim.animationSpeed;
+
+  // Helper: get action bone delta (defaults to 0)
+  const ad = (boneName: string, axis: "rx" | "ry" | "rz" | "px" | "py") =>
+    action.bones[boneName]?.[axis] ?? 0;
+
+  // ── Hips ──
+  const hips = bone(vrm, "hips");
+  if (hips) {
+    const breathY = Math.sin(elapsed * 1.5 * speed) * 0.003 * breathScale;
+    hips.position.x = 0 + ad("hips", "px");
+    hips.position.y = hipsBaseY + breathY + ad("hips", "py");
+    hips.rotation.z = 0 + ad("hips", "rz");
+  }
+
+  // ── Spine ──
+  const spine = bone(vrm, "spine");
+  if (spine) {
+    const breathX = Math.sin(elapsed * 1.5 * speed) * 0.012 * breathScale;
+    spine.rotation.x = breathX + ad("spine", "rx");
+    spine.rotation.z = 0 + ad("spine", "rz");
+  }
+
+  // ── Neck ──
+  const neck = bone(vrm, "neck");
+  if (neck) {
+    neck.rotation.x = 0 + ad("neck", "rx");
+  }
+
+  // ── Head ──
+  const head = bone(vrm, "head");
+  if (head) {
+    const swayY = Math.sin(elapsed * 0.5 * speed) * 0.05 * headScale;
+    const swayZ = Math.sin(elapsed * 0.3 * speed) * 0.02 * headScale;
+    head.rotation.x = 0 + ad("head", "rx");
+    head.rotation.y = swayY + ad("head", "ry");
+    head.rotation.z = swayZ + ad("head", "rz");
+  }
+
+  // ── Arms (rest pose only, actions don't touch these) ──
   const armRad = deg2rad(pose.armDown);
   const elbowRad = deg2rad(pose.elbowBend);
 
-  const bones: Record<string, { rx?: number; ry?: number; rz?: number; px?: number; py?: number }> = {
-    hips:           { rz: 0, px: 0, py: hipsBaseY },
-    spine:          { rx: 0, rz: 0 },
-    neck:           { rx: 0 },
-    head:           { rx: 0, ry: 0, rz: 0 },
-    leftUpperArm:   { rz: -armRad },
-    rightUpperArm:  { rz: armRad },
-    leftLowerArm:   { rz: -elbowRad },
-    rightLowerArm:  { rz: elbowRad },
-    leftShoulder:   { rz: 0 },
-    rightShoulder:  { rz: 0 },
-  };
+  const lua = bone(vrm, "leftUpperArm");
+  if (lua) lua.rotation.z = -armRad;
+  const rua = bone(vrm, "rightUpperArm");
+  if (rua) rua.rotation.z = armRad;
+  const lla = bone(vrm, "leftLowerArm");
+  if (lla) lla.rotation.z = -elbowRad;
+  const rla = bone(vrm, "rightLowerArm");
+  if (rla) rla.rotation.z = elbowRad;
 
-  for (const [name, vals] of Object.entries(bones)) {
-    const node = vrm.humanoid?.getNormalizedBoneNode(name);
-    if (!node) continue;
-    if (vals.rx !== undefined) node.rotation.x = vals.rx;
-    if (vals.ry !== undefined) node.rotation.y = vals.ry;
-    if (vals.rz !== undefined) node.rotation.z = vals.rz;
-    if (vals.px !== undefined) node.position.x = vals.px;
-    if (vals.py !== undefined) node.position.y = vals.py;
+  // ── Shoulders ──
+  const ls = bone(vrm, "leftShoulder");
+  if (ls) ls.rotation.z = 0 + ad("leftShoulder", "rz");
+  const rs = bone(vrm, "rightShoulder");
+  if (rs) rs.rotation.z = 0 + ad("rightShoulder", "rz");
+
+  // ── Expressions ──
+  // Action expressions (blink, lookLeft, etc.)
+  vrm.expressionManager?.setValue("blink", action.expressions.blink ?? 0);
+  vrm.expressionManager?.setValue("happy", action.expressions.happy ?? 0);
+  vrm.expressionManager?.setValue("lookLeft", action.expressions.lookLeft ?? 0);
+  vrm.expressionManager?.setValue("lookRight", action.expressions.lookRight ?? 0);
+  vrm.expressionManager?.setValue("lookUp", action.expressions.lookUp ?? 0);
+
+  // ── Mouth (speaking) ──
+  if (mouthOpen !== undefined && mouthOpen > 0) {
+    vrm.expressionManager?.setValue("aa", mouthOpen);
+  } else if (speaking) {
+    const openAmount = (Math.sin(elapsed * 12 * speed) + 1) * 0.3;
+    vrm.expressionManager?.setValue("aa", openAmount);
+  } else {
+    vrm.expressionManager?.setValue("aa", 0);
   }
-
-  // Reset expressions that idle actions may set
-  vrm.expressionManager?.setValue("blink", 0);
-  vrm.expressionManager?.setValue("happy", 0);
-  vrm.expressionManager?.setValue("lookLeft", 0);
-  vrm.expressionManager?.setValue("lookRight", 0);
-  vrm.expressionManager?.setValue("lookUp", 0);
 }
 
 export default function VRMViewer({
@@ -73,19 +139,18 @@ export default function VRMViewer({
   const hipsBaseY = useRef<number>(0);
   const idleScheduler = useRef<IdleSchedulerState>(createIdleScheduler());
 
-  const emotionRef = useRef(emotion);
-  const speakingRef = useRef(speaking);
-  const mouthOpenRef = useRef(mouthOpen);
+  // Refs for animation loop access
   const poseRef = useRef(poseConfig ?? DEFAULT_POSE);
   const animRef = useRef(animConfig ?? DEFAULT_ANIMATION);
   const camRef = useRef(camConfig ?? DEFAULT_CAMERA);
+  const speakingRef = useRef(speaking);
+  const mouthOpenRef = useRef(mouthOpen);
 
-  useEffect(() => { emotionRef.current = emotion; }, [emotion]);
-  useEffect(() => { speakingRef.current = speaking; }, [speaking]);
-  useEffect(() => { mouthOpenRef.current = mouthOpen; }, [mouthOpen]);
   useEffect(() => { poseRef.current = poseConfig ?? DEFAULT_POSE; }, [poseConfig]);
   useEffect(() => { animRef.current = animConfig ?? DEFAULT_ANIMATION; }, [animConfig]);
   useEffect(() => { camRef.current = camConfig ?? DEFAULT_CAMERA; }, [camConfig]);
+  useEffect(() => { speakingRef.current = speaking; }, [speaking]);
+  useEffect(() => { mouthOpenRef.current = mouthOpen; }, [mouthOpen]);
 
   // Camera config reactive update
   useEffect(() => {
@@ -97,54 +162,6 @@ export default function VRMViewer({
     camera.lookAt(0, c.lookAtHeight, 0);
     camera.updateProjectionMatrix();
   }, [camConfig]);
-
-  /**
-   * Base idle animation — absolute values layered on rest pose.
-   * Uses = (assignment) so values are deterministic per-frame.
-   */
-  const applyIdleAnimation = useCallback((vrm: VRM, elapsed: number) => {
-    const a = animRef.current;
-    const speed = a.animationSpeed;
-    const breathScale = a.breathingIntensity / 100;
-    const headScale = a.headSwayIntensity / 100;
-
-    // Breathing — hips Y oscillation (= assignment, not +=)
-    const hips = vrm.humanoid?.getNormalizedBoneNode("hips");
-    if (hips) {
-      hips.position.y = hipsBaseY.current + Math.sin(elapsed * 1.5 * speed) * 0.003 * breathScale;
-    }
-
-    // Spine breathing
-    const spine = vrm.humanoid?.getNormalizedBoneNode("spine");
-    if (spine) {
-      spine.rotation.x = Math.sin(elapsed * 1.5 * speed) * 0.012 * breathScale;
-    }
-
-    // Head sway
-    const head = vrm.humanoid?.getNormalizedBoneNode("head");
-    if (head) {
-      head.rotation.y = Math.sin(elapsed * 0.5 * speed) * 0.05 * headScale;
-      head.rotation.z = Math.sin(elapsed * 0.3 * speed) * 0.02 * headScale;
-    }
-  }, []);
-
-  /**
-   * Mouth animation for speaking.
-   */
-  const applySpeakingAnimation = useCallback((vrm: VRM, elapsed: number) => {
-    const externalMouth = mouthOpenRef.current;
-    if (externalMouth !== undefined && externalMouth > 0) {
-      vrm.expressionManager?.setValue("aa", externalMouth);
-      return;
-    }
-    if (!speakingRef.current) {
-      vrm.expressionManager?.setValue("aa", 0);
-      return;
-    }
-    const speed = animRef.current.animationSpeed;
-    const openAmount = (Math.sin(elapsed * 12 * speed) + 1) * 0.3;
-    vrm.expressionManager?.setValue("aa", openAmount);
-  }, []);
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -174,20 +191,18 @@ export default function VRMViewer({
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendererRef.current = renderer;
-
     container.appendChild(renderer.domElement);
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-    directionalLight.position.set(1, 2, 3);
-    scene.add(directionalLight);
-    const rimLight = new THREE.DirectionalLight(0x88ccff, 0.4);
-    rimLight.position.set(-1, 1, -2);
-    scene.add(rimLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+    dir.position.set(1, 2, 3);
+    scene.add(dir);
+    const rim = new THREE.DirectionalLight(0x88ccff, 0.4);
+    rim.position.set(-1, 1, -2);
+    scene.add(rim);
 
-    // Load VRM model
+    // Load VRM
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
@@ -195,53 +210,52 @@ export default function VRMViewer({
       modelUrl,
       (gltf) => {
         const vrm = gltf.userData.vrm as VRM;
-        if (!vrm) {
-          console.error("[ClawBody] Loaded file is not a valid VRM model");
-          return;
-        }
+        if (!vrm) return;
 
         vrm.scene.rotation.y = 0;
         scene.add(vrm.scene);
         vrmRef.current = vrm;
 
-        // Capture hips base Y for breathing reference
-        const hips = vrm.humanoid?.getNormalizedBoneNode("hips");
-        if (hips) hipsBaseY.current = hips.position.y;
+        // Capture rest position
+        const h = vrm.humanoid?.getNormalizedBoneNode("hips");
+        if (h) hipsBaseY.current = h.position.y;
 
-        // Apply initial rest pose
-        resetToRestPose(vrm, poseRef.current, hipsBaseY.current);
-
-        console.log("[ClawBody] VRM model loaded, pose applied");
+        console.log("[ClawBody] VRM loaded, hipsBaseY:", hipsBaseY.current);
       },
-      (progress) => {
-        const pct = ((progress.loaded / progress.total) * 100).toFixed(1);
-        console.log(`[ClawBody] Loading model: ${pct}%`);
-      },
-      (error) => {
-        console.error("[ClawBody] Failed to load VRM model:", error);
-      },
+      undefined,
+      (error) => console.error("[ClawBody] VRM load failed:", error),
     );
 
     // Animation loop
     const clock = clockRef.current;
     let frameId: number;
+
     const animate = () => {
       frameId = requestAnimationFrame(animate);
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
       const vrm = vrmRef.current;
+
       if (vrm) {
-        // 1. Reset ALL animated bones to rest pose (prevents += accumulation)
-        resetToRestPose(vrm, poseRef.current, hipsBaseY.current);
-        // 2. Base idle animation (breathing, sway) — uses = assignment
-        applyIdleAnimation(vrm, elapsed);
-        // 3. Random idle actions (blink, look, etc.) — uses += additive deltas
-        //    Safe because step 1 already reset everything
-        updateIdleScheduler(idleScheduler.current, vrm, elapsed);
-        // 4. Speaking mouth animation
-        applySpeakingAnimation(vrm, elapsed);
+        // Get action deltas (pure computation, no bone modification)
+        const actionDeltas = tickIdleScheduler(idleScheduler.current, elapsed);
+
+        // Single unified bone assignment — ALL values set with = per frame
+        applyFrame(
+          vrm,
+          poseRef.current,
+          hipsBaseY.current,
+          elapsed,
+          animRef.current,
+          actionDeltas,
+          speakingRef.current,
+          mouthOpenRef.current,
+          animRef.current.animationSpeed,
+        );
+
         vrm.update(delta);
       }
+
       renderer.render(scene, camera);
     };
     animate();
@@ -249,15 +263,12 @@ export default function VRMViewer({
     // Resize
     const handleResize = () => {
       if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      camera.aspect = w / h;
+      camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      renderer.setSize(container.clientWidth, container.clientHeight);
     };
     window.addEventListener("resize", handleResize);
 
-    // Cleanup
     return () => {
       cancelAnimationFrame(frameId);
       window.removeEventListener("resize", handleResize);
@@ -276,19 +287,13 @@ export default function VRMViewer({
         });
       }
     };
-  }, [modelUrl, applyIdleAnimation, applySpeakingAnimation]);
+  }, [modelUrl]);
 
   return (
     <div
       ref={containerRef}
       className="vrm-viewer"
-      style={{
-        width: "100%",
-        height: "100%",
-        position: "absolute",
-        top: 0,
-        left: 0,
-      }}
+      style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0 }}
     />
   );
 }

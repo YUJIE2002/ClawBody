@@ -1,279 +1,221 @@
 /**
- * Idle Action System — procedural mini-animations for VRM characters.
+ * Idle Action System v2 — output delta maps, never touch bones directly.
  *
- * Each action defines bone manipulations over a duration.
- * A scheduler randomly picks and plays them at intervals,
- * making the character feel alive like a QQ pet.
+ * Each action returns bone deltas + expression deltas for a given progress.
+ * The main animation loop combines base animation + action deltas,
+ * then sets bones with = (never +=). Zero accumulation possible.
  */
 
-import type { VRM } from "@pixiv/three-vrm";
-
-/** Smooth ease-in-out for natural motion */
+/** Smooth ease-in-out */
 function easeInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
 }
 
-/** Ease out (fast start, slow end) */
 function easeOut(t: number): number {
   return 1 - (1 - t) ** 3;
 }
 
-/** Triangle wave: 0→1→0 over progress 0→1 */
+/** Triangle wave: 0→1→0 */
 function triangle(t: number): number {
   return t < 0.5 ? easeInOut(t * 2) : easeInOut((1 - t) * 2);
 }
 
-/**
- * Get a bone node, or null. Shorthand to reduce repetition.
- */
-function bone(vrm: VRM, name: string) {
-  return vrm.humanoid?.getNormalizedBoneNode(name) ?? null;
+// ── Delta types ──
+
+export interface BoneDeltas {
+  [boneName: string]: {
+    rx?: number;
+    ry?: number;
+    rz?: number;
+    px?: number;
+    py?: number;
+  };
 }
 
-// ── Action Definitions ──────────────────────────────────
+export interface ActionOutput {
+  bones: BoneDeltas;
+  expressions: Record<string, number>;
+}
+
+const EMPTY_OUTPUT: ActionOutput = { bones: {}, expressions: {} };
+
+// ── Action Definition ──
 
 export interface IdleAction {
   name: string;
-  /** Duration in seconds */
   duration: number;
-  /** Weight: higher = more likely to be picked */
   weight: number;
-  /**
-   * Apply the action at a given progress (0 to 1).
-   * Should SET rotation/position deltas (not accumulate).
-   * Returns bone names that were modified so the scheduler
-   * can reset them after the action ends.
-   */
-  apply: (vrm: VRM, progress: number) => void;
-  /** Reset any bones this action touches */
-  reset: (vrm: VRM) => void;
+  /** Return deltas for this progress (0-1). Pure function, no side effects. */
+  compute(progress: number): ActionOutput;
 }
 
-/** Blink — quick close-open of eyes */
+// ── Actions ──
+
 const blink: IdleAction = {
   name: "blink",
   duration: 0.3,
   weight: 10,
-  apply(vrm, p) {
-    // Fast close, slow open
+  compute(p) {
     const v = p < 0.4 ? easeOut(p / 0.4) : easeOut((1 - p) / 0.6);
-    vrm.expressionManager?.setValue("blink", v);
-  },
-  reset(vrm) {
-    vrm.expressionManager?.setValue("blink", 0);
+    return { bones: {}, expressions: { blink: v } };
   },
 };
 
-/** Double blink — two quick blinks */
 const doubleBlink: IdleAction = {
   name: "doubleBlink",
   duration: 0.7,
   weight: 3,
-  apply(vrm, p) {
-    // Two blink peaks at p=0.2 and p=0.6
+  compute(p) {
     let v = 0;
     if (p < 0.35) {
-      const local = p / 0.35;
-      v = local < 0.4 ? easeOut(local / 0.4) : easeOut((1 - local) / 0.6);
+      const l = p / 0.35;
+      v = l < 0.4 ? easeOut(l / 0.4) : easeOut((1 - l) / 0.6);
     } else if (p > 0.45 && p < 0.85) {
-      const local = (p - 0.45) / 0.4;
-      v = local < 0.4 ? easeOut(local / 0.4) : easeOut((1 - local) / 0.6);
+      const l = (p - 0.45) / 0.4;
+      v = l < 0.4 ? easeOut(l / 0.4) : easeOut((1 - l) / 0.6);
     }
-    vrm.expressionManager?.setValue("blink", v);
-  },
-  reset(vrm) {
-    vrm.expressionManager?.setValue("blink", 0);
+    return { bones: {}, expressions: { blink: v } };
   },
 };
 
-/** Look left then back */
 const lookLeft: IdleAction = {
   name: "lookLeft",
   duration: 2.0,
   weight: 4,
-  apply(vrm, p) {
-    const head = bone(vrm, "head");
-    if (head) {
-      head.rotation.y += triangle(p) * 0.25;
-    }
-    // Eyes follow
-    vrm.expressionManager?.setValue("lookLeft", triangle(p) * 0.6);
-  },
-  reset(vrm) {
-    vrm.expressionManager?.setValue("lookLeft", 0);
+  compute(p) {
+    const t = triangle(p);
+    return {
+      bones: { head: { ry: t * 0.25 } },
+      expressions: { lookLeft: t * 0.6 },
+    };
   },
 };
 
-/** Look right then back */
 const lookRight: IdleAction = {
   name: "lookRight",
   duration: 2.0,
   weight: 4,
-  apply(vrm, p) {
-    const head = bone(vrm, "head");
-    if (head) {
-      head.rotation.y += triangle(p) * -0.25;
-    }
-    vrm.expressionManager?.setValue("lookRight", triangle(p) * 0.6);
-  },
-  reset(vrm) {
-    vrm.expressionManager?.setValue("lookRight", 0);
+  compute(p) {
+    const t = triangle(p);
+    return {
+      bones: { head: { ry: t * -0.25 } },
+      expressions: { lookRight: t * 0.6 },
+    };
   },
 };
 
-/** Tilt head curiously */
 const headTilt: IdleAction = {
   name: "headTilt",
   duration: 2.5,
   weight: 3,
-  apply(vrm, p) {
-    const head = bone(vrm, "head");
-    if (head) {
-      head.rotation.z += triangle(p) * 0.12;
-      head.rotation.x += triangle(p) * -0.05;
-    }
+  compute(p) {
+    const t = triangle(p);
+    return {
+      bones: { head: { rz: t * 0.12, rx: t * -0.05 } },
+      expressions: {},
+    };
   },
-  reset() {},
 };
 
-/** Nod slightly — like acknowledging something */
 const nod: IdleAction = {
   name: "nod",
   duration: 1.2,
   weight: 2,
-  apply(vrm, p) {
-    const head = bone(vrm, "head");
-    if (head) {
-      // Two small nods
-      const cycle = Math.sin(p * Math.PI * 3) * (1 - p);
-      head.rotation.x += cycle * 0.08;
-    }
+  compute(p) {
+    const cycle = Math.sin(p * Math.PI * 3) * (1 - p);
+    return {
+      bones: { head: { rx: cycle * 0.08 } },
+      expressions: {},
+    };
   },
-  reset() {},
 };
 
-/** Shift weight — subtle hip sway */
 const weightShift: IdleAction = {
   name: "weightShift",
   duration: 3.0,
   weight: 5,
-  apply(vrm, p) {
-    const hips = bone(vrm, "hips");
-    const spine = bone(vrm, "spine");
-    if (hips) {
-      hips.rotation.z += triangle(p) * 0.03;
-      hips.position.x += triangle(p) * 0.01;
-    }
-    if (spine) {
-      // Counter-rotate spine slightly for natural S-curve
-      spine.rotation.z += triangle(p) * -0.015;
-    }
-  },
-  reset(vrm) {
-    const hips = bone(vrm, "hips");
-    if (hips) hips.position.x = 0;
+  compute(p) {
+    const t = triangle(p);
+    return {
+      bones: {
+        hips: { rz: t * 0.03, px: t * 0.01 },
+        spine: { rz: t * -0.015 },
+      },
+      expressions: {},
+    };
   },
 };
 
-/** Small stretch — raise shoulders slightly */
 const miniStretch: IdleAction = {
   name: "miniStretch",
   duration: 3.5,
   weight: 2,
-  apply(vrm, p) {
-    const leftShoulder = bone(vrm, "leftShoulder");
-    const rightShoulder = bone(vrm, "rightShoulder");
-    const neck = bone(vrm, "neck");
+  compute(p) {
     const t = triangle(p);
-    if (leftShoulder) leftShoulder.rotation.z += t * -0.08;
-    if (rightShoulder) rightShoulder.rotation.z += t * 0.08;
-    if (neck) neck.rotation.x += t * -0.06;
+    return {
+      bones: {
+        leftShoulder: { rz: t * -0.08 },
+        rightShoulder: { rz: t * 0.08 },
+        neck: { rx: t * -0.06 },
+      },
+      expressions: {},
+    };
   },
-  reset() {},
 };
 
-/** Sigh — slight droop then recovery */
 const sigh: IdleAction = {
   name: "sigh",
   duration: 2.5,
   weight: 1,
-  apply(vrm, p) {
-    const spine = bone(vrm, "spine");
-    const head = bone(vrm, "head");
-    // Droop down then come back up
+  compute(p) {
     const droop = p < 0.4 ? easeInOut(p / 0.4) : easeInOut((1 - p) / 0.6);
-    if (spine) spine.rotation.x += droop * 0.04;
-    if (head) head.rotation.x += droop * 0.06;
-    // Partial eye close
-    vrm.expressionManager?.setValue("blink", droop * 0.3);
-  },
-  reset(vrm) {
-    vrm.expressionManager?.setValue("blink", 0);
+    return {
+      bones: {
+        spine: { rx: droop * 0.04 },
+        head: { rx: droop * 0.06 },
+      },
+      expressions: { blink: droop * 0.3 },
+    };
   },
 };
 
-/** Happy bounce — small vertical bounce */
 const happyBounce: IdleAction = {
   name: "happyBounce",
   duration: 1.5,
   weight: 1,
-  apply(vrm, p) {
-    const hips = bone(vrm, "hips");
-    if (hips) {
-      const bounce = Math.sin(p * Math.PI * 4) * (1 - p) * 0.008;
-      hips.position.y += bounce;
-    }
-    // Slight smile
-    vrm.expressionManager?.setValue("happy", triangle(p) * 0.4);
-  },
-  reset(vrm) {
-    vrm.expressionManager?.setValue("happy", 0);
+  compute(p) {
+    const bounce = Math.sin(p * Math.PI * 4) * (1 - p) * 0.008;
+    return {
+      bones: { hips: { py: bounce } },
+      expressions: { happy: triangle(p) * 0.4 },
+    };
   },
 };
 
-/** Look up briefly — as if thinking */
 const lookUp: IdleAction = {
   name: "lookUp",
   duration: 2.0,
   weight: 2,
-  apply(vrm, p) {
-    const head = bone(vrm, "head");
-    if (head) {
-      head.rotation.x += triangle(p) * -0.12;
-    }
-    vrm.expressionManager?.setValue("lookUp", triangle(p) * 0.5);
-  },
-  reset(vrm) {
-    vrm.expressionManager?.setValue("lookUp", 0);
+  compute(p) {
+    const t = triangle(p);
+    return {
+      bones: { head: { rx: t * -0.12 } },
+      expressions: { lookUp: t * 0.5 },
+    };
   },
 };
 
-// ── All available actions ──
-
 export const IDLE_ACTIONS: IdleAction[] = [
-  blink,
-  doubleBlink,
-  lookLeft,
-  lookRight,
-  headTilt,
-  nod,
-  weightShift,
-  miniStretch,
-  sigh,
-  happyBounce,
-  lookUp,
+  blink, doubleBlink, lookLeft, lookRight, headTilt,
+  nod, weightShift, miniStretch, sigh, happyBounce, lookUp,
 ];
 
-// ── Scheduler ───────────────────────────────────
+// ── Scheduler ──
 
 export interface IdleSchedulerState {
-  /** Currently playing action, or null */
   current: IdleAction | null;
-  /** When the current action started (elapsed time) */
   startTime: number;
-  /** When the next action should trigger */
   nextTrigger: number;
-  /** Last action name (avoid immediate repeat) */
   lastAction: string;
 }
 
@@ -281,14 +223,11 @@ export function createIdleScheduler(): IdleSchedulerState {
   return {
     current: null,
     startTime: 0,
-    nextTrigger: 1.5 + Math.random() * 2, // First action after 1.5-3.5s
+    nextTrigger: 1.5 + Math.random() * 2,
     lastAction: "",
   };
 }
 
-/**
- * Pick a weighted random action, avoiding immediate repeats.
- */
 function pickAction(lastAction: string): IdleAction {
   const candidates = IDLE_ACTIONS.filter((a) => a.name !== lastAction);
   const totalWeight = candidates.reduce((sum, a) => sum + a.weight, 0);
@@ -301,40 +240,29 @@ function pickAction(lastAction: string): IdleAction {
 }
 
 /**
- * Update the idle scheduler. Call every frame.
- * Returns true if an action is currently playing.
+ * Tick the scheduler and return current action deltas (or empty).
+ * Pure: does NOT modify any VRM bones.
  */
-export function updateIdleScheduler(
+export function tickIdleScheduler(
   state: IdleSchedulerState,
-  vrm: VRM,
   elapsed: number,
-): boolean {
-  // If an action is playing, update it
+): ActionOutput {
   if (state.current) {
-    const actionElapsed = elapsed - state.startTime;
-    const progress = Math.min(actionElapsed / state.current.duration, 1);
-
+    const progress = Math.min((elapsed - state.startTime) / state.current.duration, 1);
     if (progress >= 1) {
-      // Action finished
-      state.current.reset(vrm);
       state.lastAction = state.current.name;
       state.current = null;
-      // Schedule next action: 2-6 seconds from now
       state.nextTrigger = elapsed + 2 + Math.random() * 4;
-      return false;
+      return EMPTY_OUTPUT;
     }
-
-    state.current.apply(vrm, progress);
-    return true;
+    return state.current.compute(progress);
   }
 
-  // No action playing — check if it's time for the next one
   if (elapsed >= state.nextTrigger) {
-    const action = pickAction(state.lastAction);
-    state.current = action;
+    state.current = pickAction(state.lastAction);
     state.startTime = elapsed;
-    return true;
+    return state.current.compute(0);
   }
 
-  return false;
+  return EMPTY_OUTPUT;
 }
