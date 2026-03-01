@@ -8,28 +8,57 @@ import { DEFAULT_POSE, DEFAULT_ANIMATION, DEFAULT_CAMERA } from "../lib/config";
 import { createIdleScheduler, updateIdleScheduler, type IdleSchedulerState } from "../lib/idle-actions";
 
 interface VRMViewerProps {
-  /** URL to the VRM model file */
   modelUrl: string;
-  /** Current emotion state from OpenClaw */
   emotion: Emotion;
-  /** Whether the character is currently speaking */
   speaking: boolean;
-  /** External lip sync mouth open amount (0-1). Overrides speaking animation when set. */
   mouthOpen?: number;
-  /** Pose configuration (arm angles, etc.) */
   pose?: PoseConfig;
-  /** Animation configuration (breathing, sway, speed) */
   animation?: AnimationConfig;
-  /** Camera configuration (position, FOV) */
   camera?: CameraConfig;
 }
 
-/** Convert degrees to radians */
 const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
 /**
- * VRMViewer — Three.js scene that renders a VRM avatar
+ * Reset all animation-affected bones to rest pose.
+ * Called at the START of every frame before any animation is applied.
+ * This prevents += accumulation bugs across frames.
  */
+function resetToRestPose(vrm: VRM, pose: PoseConfig, hipsBaseY: number) {
+  const armRad = deg2rad(pose.armDown);
+  const elbowRad = deg2rad(pose.elbowBend);
+
+  const bones: Record<string, { rx?: number; ry?: number; rz?: number; px?: number; py?: number }> = {
+    hips:           { rz: 0, px: 0, py: hipsBaseY },
+    spine:          { rx: 0, rz: 0 },
+    neck:           { rx: 0 },
+    head:           { rx: 0, ry: 0, rz: 0 },
+    leftUpperArm:   { rz: -armRad },
+    rightUpperArm:  { rz: armRad },
+    leftLowerArm:   { rz: -elbowRad },
+    rightLowerArm:  { rz: elbowRad },
+    leftShoulder:   { rz: 0 },
+    rightShoulder:  { rz: 0 },
+  };
+
+  for (const [name, vals] of Object.entries(bones)) {
+    const node = vrm.humanoid?.getNormalizedBoneNode(name);
+    if (!node) continue;
+    if (vals.rx !== undefined) node.rotation.x = vals.rx;
+    if (vals.ry !== undefined) node.rotation.y = vals.ry;
+    if (vals.rz !== undefined) node.rotation.z = vals.rz;
+    if (vals.px !== undefined) node.position.x = vals.px;
+    if (vals.py !== undefined) node.position.y = vals.py;
+  }
+
+  // Reset expressions that idle actions may set
+  vrm.expressionManager?.setValue("blink", 0);
+  vrm.expressionManager?.setValue("happy", 0);
+  vrm.expressionManager?.setValue("lookLeft", 0);
+  vrm.expressionManager?.setValue("lookRight", 0);
+  vrm.expressionManager?.setValue("lookUp", 0);
+}
+
 export default function VRMViewer({
   modelUrl, emotion, speaking, mouthOpen,
   pose: poseConfig,
@@ -41,10 +70,9 @@ export default function VRMViewer({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const clockRef = useRef(new THREE.Clock());
-  const hipsBaseY = useRef<number | null>(null);
+  const hipsBaseY = useRef<number>(0);
   const idleScheduler = useRef<IdleSchedulerState>(createIdleScheduler());
 
-  // Store latest props in refs for animation loop access
   const emotionRef = useRef(emotion);
   const speakingRef = useRef(speaking);
   const mouthOpenRef = useRef(mouthOpen);
@@ -59,26 +87,7 @@ export default function VRMViewer({
   useEffect(() => { animRef.current = animConfig ?? DEFAULT_ANIMATION; }, [animConfig]);
   useEffect(() => { camRef.current = camConfig ?? DEFAULT_CAMERA; }, [camConfig]);
 
-  // Apply pose whenever config changes
-  useEffect(() => {
-    const vrm = vrmRef.current;
-    if (!vrm) return;
-    const p = poseConfig ?? DEFAULT_POSE;
-    const armRad = deg2rad(p.armDown);
-    const elbowRad = deg2rad(p.elbowBend);
-
-    const leftUpperArm = vrm.humanoid?.getNormalizedBoneNode("leftUpperArm");
-    const rightUpperArm = vrm.humanoid?.getNormalizedBoneNode("rightUpperArm");
-    const leftLowerArm = vrm.humanoid?.getNormalizedBoneNode("leftLowerArm");
-    const rightLowerArm = vrm.humanoid?.getNormalizedBoneNode("rightLowerArm");
-
-    if (leftUpperArm) leftUpperArm.rotation.z = -armRad;
-    if (rightUpperArm) rightUpperArm.rotation.z = armRad;
-    if (leftLowerArm) leftLowerArm.rotation.z = -elbowRad;
-    if (rightLowerArm) rightLowerArm.rotation.z = elbowRad;
-  }, [poseConfig]);
-
-  // Apply camera config whenever it changes
+  // Camera config reactive update
   useEffect(() => {
     const camera = cameraRef.current;
     if (!camera) return;
@@ -90,7 +99,8 @@ export default function VRMViewer({
   }, [camConfig]);
 
   /**
-   * Apply idle animation driven by animRef config.
+   * Base idle animation — absolute values layered on rest pose.
+   * Uses = (assignment) so values are deterministic per-frame.
    */
   const applyIdleAnimation = useCallback((vrm: VRM, elapsed: number) => {
     const a = animRef.current;
@@ -98,16 +108,13 @@ export default function VRMViewer({
     const breathScale = a.breathingIntensity / 100;
     const headScale = a.headSwayIntensity / 100;
 
-    // Breathing — hips Y oscillation
+    // Breathing — hips Y oscillation (= assignment, not +=)
     const hips = vrm.humanoid?.getNormalizedBoneNode("hips");
     if (hips) {
-      if (hipsBaseY.current === null) {
-        hipsBaseY.current = hips.position.y;
-      }
       hips.position.y = hipsBaseY.current + Math.sin(elapsed * 1.5 * speed) * 0.003 * breathScale;
     }
 
-    // Spine breathing (chest expand)
+    // Spine breathing
     const spine = vrm.humanoid?.getNormalizedBoneNode("spine");
     if (spine) {
       spine.rotation.x = Math.sin(elapsed * 1.5 * speed) * 0.012 * breathScale;
@@ -197,24 +204,12 @@ export default function VRMViewer({
         scene.add(vrm.scene);
         vrmRef.current = vrm;
 
-        // Apply initial rest pose from config
-        const p = poseRef.current;
-        const armRad = deg2rad(p.armDown);
-        const elbowRad = deg2rad(p.elbowBend);
-
-        const leftUpperArm = vrm.humanoid?.getNormalizedBoneNode("leftUpperArm");
-        const rightUpperArm = vrm.humanoid?.getNormalizedBoneNode("rightUpperArm");
-        const leftLowerArm = vrm.humanoid?.getNormalizedBoneNode("leftLowerArm");
-        const rightLowerArm = vrm.humanoid?.getNormalizedBoneNode("rightLowerArm");
-
-        if (leftUpperArm) leftUpperArm.rotation.z = -armRad;
-        if (rightUpperArm) rightUpperArm.rotation.z = armRad;
-        if (leftLowerArm) leftLowerArm.rotation.z = -elbowRad;
-        if (rightLowerArm) rightLowerArm.rotation.z = elbowRad;
-
-        // Capture hips base Y for breathing
+        // Capture hips base Y for breathing reference
         const hips = vrm.humanoid?.getNormalizedBoneNode("hips");
         if (hips) hipsBaseY.current = hips.position.y;
+
+        // Apply initial rest pose
+        resetToRestPose(vrm, poseRef.current, hipsBaseY.current);
 
         console.log("[ClawBody] VRM model loaded, pose applied");
       },
@@ -236,10 +231,15 @@ export default function VRMViewer({
       const elapsed = clock.getElapsedTime();
       const vrm = vrmRef.current;
       if (vrm) {
+        // 1. Reset ALL animated bones to rest pose (prevents += accumulation)
+        resetToRestPose(vrm, poseRef.current, hipsBaseY.current);
+        // 2. Base idle animation (breathing, sway) — uses = assignment
         applyIdleAnimation(vrm, elapsed);
-        applySpeakingAnimation(vrm, elapsed);
-        // Random idle actions (blink, look around, weight shift, etc.)
+        // 3. Random idle actions (blink, look, etc.) — uses += additive deltas
+        //    Safe because step 1 already reset everything
         updateIdleScheduler(idleScheduler.current, vrm, elapsed);
+        // 4. Speaking mouth animation
+        applySpeakingAnimation(vrm, elapsed);
         vrm.update(delta);
       }
       renderer.render(scene, camera);
@@ -263,7 +263,6 @@ export default function VRMViewer({
       window.removeEventListener("resize", handleResize);
       renderer.dispose();
       container.removeChild(renderer.domElement);
-      hipsBaseY.current = null;
       if (vrmRef.current) {
         vrmRef.current.scene.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {
