@@ -1,42 +1,23 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - "v*"
 
-# Cancel in-progress runs for the same branch
+# Only one release at a time
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  lint:
-    name: Lint & Typecheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-      - run: npm run typecheck
-
   build:
     name: Build (${{ matrix.target.name }})
-    needs: lint
     runs-on: ${{ matrix.target.os }}
     strategy:
       fail-fast: false
       matrix:
         target:
-          - name: Linux (x64)
-            os: ubuntu-22.04
-            rust-target: x86_64-unknown-linux-gnu
           - name: Windows (x64)
             os: windows-latest
             rust-target: x86_64-pc-windows-msvc
@@ -59,21 +40,6 @@ jobs:
         with:
           targets: ${{ matrix.target.rust-target }}
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -88,20 +54,18 @@ jobs:
 
       - run: npm ci
 
-      # Download default VRM model
-      - run: node scripts/download-model.mjs
+      # Download the default VRM model for bundling
+      - run: npm run setup
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "ClawBody ${{ github.ref_name }}"
+          releaseBody: |
+            See [CHANGELOG.md](https://github.com/YUJIE2002/ClawBody/blob/main/CHANGELOG.md) for details.
+          releaseDraft: true
+          prerelease: false
           args: --target ${{ matrix.target.rust-target }}
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: clawbody-${{ matrix.target.rust-target }}
-          path: |
-            src-tauri/target/${{ matrix.target.rust-target }}/release/bundle/**/*
-          if-no-files-found: warn
