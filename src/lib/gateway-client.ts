@@ -170,7 +170,7 @@ export class GatewayClient {
         return;
       }
 
-      const id = this.nextId++;
+      const id = String(this.nextId++);
       const timeout = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Request timeout: ${method}`));
@@ -327,6 +327,15 @@ export class GatewayClient {
 
       // chat — streamed AI response (delta/final)
       if (eventName === "chat") {
+        // Filter by sessionKey to avoid cross-talk from other sessions (e.g. Telegram)
+        const eventSessionKey = (payload.sessionKey ?? data.sessionKey) as string | undefined;
+        if (eventSessionKey && this.options.sessionKey) {
+          // Match if event sessionKey contains our configured key (gateway may canonicalize it)
+          if (!eventSessionKey.includes(this.options.sessionKey)) {
+            return; // Not our session, ignore
+          }
+        }
+
         const state = payload.state as string | undefined;
         const message = payload.message as Record<string, unknown> | undefined;
         // Extract text from message.content array or message.text
@@ -344,7 +353,7 @@ export class GatewayClient {
           fullText: state === "final" ? text : undefined,
           done: state === "final" || state === "aborted" || state === "error",
           runId: (data.runId ?? payload.runId) as string | undefined,
-          sessionKey: (data.sessionKey ?? payload.sessionKey) as string | undefined,
+          sessionKey: eventSessionKey,
         };
         this.options.onChat(chatEvent);
         return;

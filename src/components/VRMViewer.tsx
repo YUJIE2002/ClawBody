@@ -90,13 +90,13 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
     const scene = new THREE.Scene();
 
     const camera = new THREE.PerspectiveCamera(
-      30, // Narrow FOV for portrait-style framing
+      28, // Slightly narrower FOV to reduce edge distortion
       container.clientWidth / container.clientHeight,
       0.1,
       20,
     );
-    camera.position.set(0, 1.3, 2.5); // Frame upper body
-    camera.lookAt(0, 1.2, 0);
+    camera.position.set(0, 1.25, 2.8); // Pull back slightly, lower camera
+    camera.lookAt(0, 1.15, 0); // Center on upper chest to keep head fully visible
 
     const renderer = new THREE.WebGLRenderer({
       alpha: true, // Transparent background — critical for desktop overlay
@@ -144,7 +144,27 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
         scene.add(vrm.scene);
         vrmRef.current = vrm;
 
-        console.log("[ClawBody] VRM model loaded successfully");
+        // Apply natural rest pose (fix T-pose)
+        // Lower arms from horizontal T-pose to a relaxed position
+        const leftUpperArm = vrm.humanoid?.getNormalizedBoneNode("leftUpperArm");
+        const rightUpperArm = vrm.humanoid?.getNormalizedBoneNode("rightUpperArm");
+        const leftLowerArm = vrm.humanoid?.getNormalizedBoneNode("leftLowerArm");
+        const rightLowerArm = vrm.humanoid?.getNormalizedBoneNode("rightLowerArm");
+
+        if (leftUpperArm) {
+          leftUpperArm.rotation.z = 1.1; // ~63° down from horizontal
+        }
+        if (rightUpperArm) {
+          rightUpperArm.rotation.z = -1.1;
+        }
+        if (leftLowerArm) {
+          leftLowerArm.rotation.z = 0.15; // Slight bend at elbow
+        }
+        if (rightLowerArm) {
+          rightLowerArm.rotation.z = -0.15;
+        }
+
+        console.log("[ClawBody] VRM model loaded, rest pose applied");
       },
       (progress) => {
         const pct = ((progress.loaded / progress.total) * 100).toFixed(1);
