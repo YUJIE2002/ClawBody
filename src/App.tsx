@@ -33,7 +33,7 @@ export default function App() {
   const prevResponseRef = useRef("");
   // Auto-dismiss chat bubble
   const [showBubble, setShowBubble] = useState(false);
-  const bubbleTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const bubbleTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // ── Lip sync state ──
   const [lipSyncMouth, setLipSyncMouth] = useState(0);

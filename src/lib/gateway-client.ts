@@ -60,7 +60,7 @@ export interface GatewayClientOptions {
 export class GatewayClient {
   private ws: WebSocket | null = null;
   private options: Required<GatewayClientOptions>;
-  private nextId: RequestId = 1;
+  private nextId = 1;
   private pending = new Map<RequestId, PendingRequest>();
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private intentionalClose = false;
@@ -224,7 +224,7 @@ export class GatewayClient {
   /**
    * Send the connect handshake to the Gateway.
    */
-  private sendConnectHandshake(nonce?: string, ts?: number): void {
+  private sendConnectHandshake(_nonce?: string, _ts?: number): void {
     const id = String(this.nextId++);
 
     const connectParams: Record<string, unknown> = {

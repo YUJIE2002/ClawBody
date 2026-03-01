@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRM } from "@pixiv/three-vrm";
@@ -27,7 +27,8 @@ const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
 /** Helper: get bone or null */
 function bone(vrm: VRM, name: string) {
-  return vrm.humanoid?.getNormalizedBoneNode(name) ?? null;
+  // Cast to VRMHumanBoneName — all callers use valid bone name literals
+  return vrm.humanoid?.getNormalizedBoneNode(name as import("@pixiv/three-vrm").VRMHumanBoneName) ?? null;
 }
 
 /**
@@ -45,7 +46,7 @@ function applyFrame(
   action: ActionOutput,
   speaking: boolean,
   mouthOpen: number | undefined,
-  animSpeed: number,
+  _animSpeed: number,
   emotion: Emotion,
 ) {
   const breathScale = anim.breathingIntensity / 100;

@@ -110,8 +110,23 @@ export const DEFAULT_CONFIG: AppConfig = {
   wakeWordLang: "zh-CN",
 };
 
+/**
+ * Deep-merge loaded config with defaults so that old configs
+ * missing new fields still get sensible values.
+ */
+function mergeWithDefaults(loaded: Partial<AppConfig>): AppConfig {
+  return {
+    ...DEFAULT_CONFIG,
+    ...loaded,
+    pose: { ...DEFAULT_CONFIG.pose, ...(loaded.pose ?? {}) },
+    animation: { ...DEFAULT_CONFIG.animation, ...(loaded.animation ?? {}) },
+    camera: { ...DEFAULT_CONFIG.camera, ...(loaded.camera ?? {}) },
+  };
+}
+
 export async function loadConfig(): Promise<AppConfig> {
-  return invoke<AppConfig>("get_config");
+  const raw = await invoke<Partial<AppConfig>>("get_config");
+  return mergeWithDefaults(raw);
 }
 
 export async function saveConfig(config: AppConfig): Promise<void> {
