@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 # Only one release at a time
 concurrency:
   group: release
@@ -21,12 +24,12 @@ jobs:
           - name: Windows (x64)
             os: windows-latest
             rust-target: x86_64-pc-windows-msvc
-          - name: macOS (x64)
-            os: macos-13
-            rust-target: x86_64-apple-darwin
           - name: macOS (ARM64)
-            os: macos-14
+            os: macos-latest
             rust-target: aarch64-apple-darwin
+          - name: macOS (x64)
+            os: macos-latest
+            rust-target: x86_64-apple-darwin
 
     steps:
       - uses: actions/checkout@v4
