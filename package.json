@@ -1,6 +1,6 @@
 {
   "name": "clawbody",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Give Your AI a Body — Desktop companion powered by OpenClaw with VRM 3D character rendering",
   "private": true,
   "type": "module",
