@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "Default capabilities for ClawBody",
-  "windows": ["main", "settings"],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:default",
@@ -16,6 +16,7 @@
     "core:window:allow-is-always-on-top",
     "core:window:allow-start-dragging",
     "core:window:allow-close",
+    "core:window:allow-set-decorations",
     "core:event:default",
     "core:event:allow-emit",
     "core:event:allow-listen",
