@@ -57,6 +57,10 @@ export interface AppConfig {
   ttsPitch: number;
   sttLanguage: string;
   autoSendVoice: boolean;
+  // Wake word
+  wakeWordEnabled: boolean;
+  wakeWord: string;
+  wakeWordLang: string;
 }
 
 export const DEFAULT_POSE: PoseConfig = {
@@ -100,6 +104,10 @@ export const DEFAULT_CONFIG: AppConfig = {
   ttsPitch: 1.0,
   sttLanguage: "en-US",
   autoSendVoice: true,
+  // Wake word defaults
+  wakeWordEnabled: false,
+  wakeWord: "顾衍",
+  wakeWordLang: "zh-CN",
 };
 
 export async function loadConfig(): Promise<AppConfig> {

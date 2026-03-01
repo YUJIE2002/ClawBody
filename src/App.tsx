@@ -9,6 +9,7 @@ import { useOpenClaw } from "./hooks/useOpenClaw";
 import { useVoiceInput } from "./hooks/useVoiceInput";
 import { useVoiceOutput } from "./hooks/useVoiceOutput";
 import { useCamera } from "./hooks/useCamera";
+import { useWakeWord } from "./hooks/useWakeWord";
 import {
   type AppConfig,
   loadConfig,
@@ -77,6 +78,36 @@ export default function App() {
     onResult: handleVoiceResult,
     lang: config?.sttLanguage ?? "en-US",
     continuous: false,
+  });
+
+  // ── Wake Word ──
+  const [wakeWordFlash, setWakeWordFlash] = useState(false);
+
+  const handleWakeWordDetected = useCallback((text: string) => {
+    if (!connected) return;
+    if (text) {
+      // Wake word + command in same utterance → send directly
+      void sendMessage(text);
+    } else {
+      // Just wake word → start listening for command via voice input
+      if (config?.voiceInputEnabled && voiceInput.supported) {
+        voiceInput.startListening();
+      }
+    }
+  }, [connected, sendMessage, config?.voiceInputEnabled, voiceInput]);
+
+  const handleWakeActivated = useCallback(() => {
+    // Visual feedback: flash the status dot
+    setWakeWordFlash(true);
+    setTimeout(() => setWakeWordFlash(false), 1500);
+  }, []);
+
+  const wakeWord = useWakeWord({
+    wakeWord: config?.wakeWord ?? "顾衍",
+    lang: config?.wakeWordLang ?? "zh-CN",
+    onWake: handleWakeWordDetected,
+    onActivated: handleWakeActivated,
+    enabled: config?.wakeWordEnabled ?? false,
   });
 
   // ── Auto-speak AI responses ──
@@ -240,9 +271,19 @@ export default function App() {
   return (
     <div className="app">
       <div
-        className="status-dot"
-        title={connected ? "Connected to OpenClaw" : "Disconnected"}
-        style={{ backgroundColor: connected ? "#4ade80" : "#f87171" }}
+        className={`status-dot${wakeWordFlash ? " wake-flash" : ""}`}
+        title={
+          wakeWordFlash ? "Wake word detected!"
+          : wakeWord.active ? "Listening for wake word..."
+          : connected ? "Connected to OpenClaw"
+          : "Disconnected"
+        }
+        style={{
+          backgroundColor: wakeWordFlash ? "#facc15"
+            : wakeWord.active ? "#60a5fa"
+            : connected ? "#4ade80"
+            : "#f87171",
+        }}
       />
 
       <div style={{

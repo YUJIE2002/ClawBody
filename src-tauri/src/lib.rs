@@ -48,6 +48,13 @@ pub struct AppConfig {
     pub stt_language: String,
     #[serde(default)]
     pub auto_send_voice: bool,
+    // Wake word
+    #[serde(default)]
+    pub wake_word_enabled: bool,
+    #[serde(default = "default_wake_word")]
+    pub wake_word: String,
+    #[serde(default = "default_wake_word_lang")]
+    pub wake_word_lang: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -125,6 +132,8 @@ impl Default for CameraViewConfig {
 fn default_tts_rate() -> f64 { 1.0 }
 fn default_tts_pitch() -> f64 { 1.0 }
 fn default_stt_language() -> String { "en-US".to_string() }
+fn default_wake_word() -> String { "顾衍".to_string() }
+fn default_wake_word_lang() -> String { "zh-CN".to_string() }
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -149,6 +158,9 @@ impl Default for AppConfig {
             tts_pitch: 1.0,
             stt_language: "en-US".to_string(),
             auto_send_voice: false,
+            wake_word_enabled: false,
+            wake_word: "顾衍".to_string(),
+            wake_word_lang: "zh-CN".to_string(),
         }
     }
 }

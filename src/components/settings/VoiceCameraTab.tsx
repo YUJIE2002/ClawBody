@@ -45,6 +45,62 @@ export default function VoiceCameraTab({ config, updateConfig }: Props) {
       <h2>语音 & 摄像头</h2>
       <p className="tab-desc">Configure voice input, speech output, and camera vision.</p>
 
+      {/* ── Wake Word ── */}
+      <div className="settings-section">
+        <h3 className="section-title">🗣️ 语音唤醒</h3>
+
+        {!sttSupported && (
+          <div className="warning-box">
+            ⚠️ Speech recognition not supported. Wake word requires it.
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={config.wakeWordEnabled ?? false}
+              disabled={!sttSupported}
+              onChange={(e) => updateConfig({ wakeWordEnabled: e.target.checked })}
+            />
+            启用语音唤醒 (始终聆听唤醒词)
+          </label>
+        </div>
+
+        <div className="form-group">
+          <label>唤醒词</label>
+          <input
+            type="text"
+            value={config.wakeWord ?? "顾衍"}
+            disabled={!config.wakeWordEnabled}
+            onChange={(e) => updateConfig({ wakeWord: e.target.value })}
+            placeholder="e.g. 顾衍, hey yan"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>唤醒词语言</label>
+          <select
+            className="form-select"
+            value={config.wakeWordLang ?? "zh-CN"}
+            disabled={!config.wakeWordEnabled}
+            onChange={(e) => updateConfig({ wakeWordLang: e.target.value })}
+          >
+            <option value="zh-CN">中文 (简体)</option>
+            <option value="zh-TW">中文 (繁體)</option>
+            <option value="en-US">English (US)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="ja-JP">日本語</option>
+          </select>
+        </div>
+
+        <div className="info-box">
+          <p>💡 启用后，ClawBody 持续监听麦克风，检测到唤醒词后自动激活对话。</p>
+          <p>说 "{config.wakeWord ?? "顾衍"} + 问题" 可直接提问，或只说唤醒词后等待语音输入。</p>
+          <p>⚠️ 当前使用 Web Speech API，音频经云端识别。未来将支持本地离线唤醒。</p>
+        </div>
+      </div>
+
       {/* ── Voice Input (STT) ── */}
       <div className="settings-section">
         <h3 className="section-title">🎤 Voice Input (Speech-to-Text)</h3>
