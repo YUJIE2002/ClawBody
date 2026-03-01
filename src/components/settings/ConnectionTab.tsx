@@ -39,7 +39,7 @@ export default function ConnectionTab({ config, updateConfig }: Props) {
           type="text"
           value={config.gatewayUrl}
           onChange={(e) => updateConfig({ gatewayUrl: e.target.value })}
-          placeholder="ws://localhost:18789"
+          placeholder="ws://localhost:18789 or wss://your-domain:port"
         />
       </div>
 
@@ -74,7 +74,10 @@ export default function ConnectionTab({ config, updateConfig }: Props) {
 
       <div className="info-box">
         <p>💡 Default Gateway port is <strong>18789</strong>. Find your token in <code>~/.openclaw/openclaw.json</code></p>
-        <p>If running remotely, use SSH tunnel: <code>ssh -L 18789:localhost:18789 your-server</code></p>
+        <p><strong>Local:</strong> <code>ws://localhost:18789</code></p>
+        <p><strong>Remote VPS (SSH tunnel):</strong> <code>ssh -L 18789:localhost:18789 your-server</code>, then use <code>ws://localhost:18789</code></p>
+        <p><strong>Remote VPS (direct):</strong> If your gateway exposes a public WSS endpoint, use <code>wss://your-domain:port</code></p>
+        <p>⚠️ For <code>wss://</code> connections, ensure the gateway has a valid TLS certificate (e.g., via reverse proxy with nginx/caddy).</p>
       </div>
     </div>
   );
