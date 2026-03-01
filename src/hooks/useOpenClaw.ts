@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Emotion } from "../lib/emotion";
+import { extractEmotion } from "../lib/emotion";
 import { GatewayClient, type ChatEvent, type ChatAttachment } from "../lib/gateway-client";
 
 interface OpenClawState {
@@ -31,19 +32,9 @@ export function useOpenClaw(gatewayUrl?: string, token?: string): OpenClawState 
   const clientRef = useRef<GatewayClient | null>(null);
   const responseBuffer = useRef("");
 
-  // Detect emotion from AI response text
-  const detectEmotion = useCallback((text: string): Emotion => {
-    const lower = text.toLowerCase();
-    // Simple keyword-based emotion detection
-    // TODO: Use AI-powered emotion detection or explicit emotion tags
-    if (/[😂🤣😄😁😊😀laugh|haha|lol|funny]/i.test(lower)) return "happy";
-    if (/[😢😭😞sad|sorry|unfortunat|regret]/i.test(lower)) return "sad";
-    if (/[😠😤angry|frustrat|annoy|damn]/i.test(lower)) return "angry";
-    if (/[😲😮🤯surprise|wow|amazing|incredible|whoa]/i.test(lower)) return "surprised";
-    if (/[🤔think|consider|hmm|let me|analyz|ponder]/i.test(lower)) return "thinking";
-    if (/[😳blush|embarrass|shy|awkward]/i.test(lower)) return "embarrassed";
-    if (/[😴💤sleep|tired|yawn|exhausted]/i.test(lower)) return "sleepy";
-    return "neutral";
+  // Extract emotion and clean text from AI response
+  const processResponse = useCallback((text: string): { emotion: Emotion; cleanText: string } => {
+    return extractEmotion(text);
   }, []);
 
   // Initialize gateway client
@@ -59,7 +50,6 @@ export function useOpenClaw(gatewayUrl?: string, token?: string): OpenClawState 
       onConnect: () => {
         setConnected(true);
         setEmotion("happy");
-        // Briefly show happy emotion on connect, then return to neutral
         setTimeout(() => setEmotion("neutral"), 2000);
       },
 
@@ -71,10 +61,11 @@ export function useOpenClaw(gatewayUrl?: string, token?: string): OpenClawState 
 
       onChat: (event: ChatEvent) => {
         if (event.done) {
-          // Response complete
-          const finalText = event.fullText ?? responseBuffer.current;
-          setLastResponse(finalText);
-          setEmotion(detectEmotion(finalText));
+          // Response complete — extract emotion and clean text
+          const rawText = event.fullText ?? responseBuffer.current;
+          const { emotion: detectedEmotion, cleanText } = processResponse(rawText);
+          setLastResponse(cleanText);
+          setEmotion(detectedEmotion);
           setSpeaking(false);
           setThinking(false);
           responseBuffer.current = "";
@@ -85,7 +76,8 @@ export function useOpenClaw(gatewayUrl?: string, token?: string): OpenClawState 
           setThinking(false);
           // Update emotion periodically during streaming
           if (responseBuffer.current.length % 100 < event.text.length) {
-            setEmotion(detectEmotion(responseBuffer.current));
+            const { emotion: streamEmotion } = processResponse(responseBuffer.current);
+            setEmotion(streamEmotion);
           }
         }
       },
@@ -102,7 +94,7 @@ export function useOpenClaw(gatewayUrl?: string, token?: string): OpenClawState 
       client.disconnect();
       clientRef.current = null;
     };
-  }, [gatewayUrl, token, detectEmotion]);
+  }, [gatewayUrl, token, processResponse]);
 
   const sendMessage = useCallback(async (message: string, attachments?: ChatAttachment[]) => {
     const client = clientRef.current;

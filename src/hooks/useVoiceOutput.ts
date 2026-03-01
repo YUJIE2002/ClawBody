@@ -45,25 +45,50 @@ export interface UseVoiceOutputReturn {
   getVoices: () => SpeechSynthesisVoice[];
 }
 
+/** Viseme intensity — how open the mouth should be for each viseme */
+const VISEME_INTENSITY: Record<Viseme, number> = {
+  aa: 0.7,
+  ih: 0.35,
+  ou: 0.5,
+  ee: 0.3,
+  oh: 0.55,
+  closed: 0.0,
+};
+
 /**
- * Simple phoneme estimation from characters.
- * Maps common vowel patterns to visemes.
+ * Phoneme estimation from characters.
+ * Supports Latin alphabets + CJK characters.
  */
 function charToViseme(char: string): Viseme {
+  const code = char.charCodeAt(0);
+
+  // CJK characters (Chinese/Japanese/Korean) — most have open mouth sounds
+  if (code >= 0x4e00 && code <= 0x9fff) {
+    // Rough distribution for Chinese speech
+    const hash = code % 5;
+    return (["aa", "oh", "ee", "ih", "ou"] as Viseme[])[hash];
+  }
+
+  // Hiragana/Katakana
+  if ((code >= 0x3040 && code <= 0x30ff)) {
+    const hash = code % 5;
+    return (["aa", "ih", "ou", "ee", "oh"] as Viseme[])[hash];
+  }
+
   const lower = char.toLowerCase();
-  if ("aáàâ".includes(lower)) return "aa";
+  if ("aáàâä".includes(lower)) return "aa";
   if ("iíìîï".includes(lower)) return "ih";
   if ("uúùûü".includes(lower)) return "ou";
   if ("eéèêë".includes(lower)) return "ee";
   if ("oóòôö".includes(lower)) return "oh";
-  // Consonants that open the mouth
   if ("bmpw".includes(lower)) return "closed";
   if ("fv".includes(lower)) return "ih";
-  if ("sz".includes(lower)) return "ee";
+  if ("szc".includes(lower)) return "ee";
   if ("tdnl".includes(lower)) return "ih";
-  if ("kg".includes(lower)) return "oh";
+  if ("kgq".includes(lower)) return "oh";
   if ("r".includes(lower)) return "aa";
-  return "aa"; // default open mouth for speech
+  if (" ,.!?;:".includes(lower)) return "closed";
+  return "aa";
 }
 
 export function useVoiceOutput(options: UseVoiceOutputOptions = {}): UseVoiceOutputReturn {
@@ -114,11 +139,15 @@ export function useVoiceOutput(options: UseVoiceOutputOptions = {}): UseVoiceOut
       setMouthOpen(amount);
       onLipSyncRef.current?.(amount, "aa");
     } else {
-      // Map current character to viseme
+      // Look at current char and a small window around it for smoother transitions
       const char = text[idx];
       const viseme = charToViseme(char);
-      const isVowel = "aeiouáéíóú".includes(char.toLowerCase());
-      const amount = isVowel ? 0.6 + Math.random() * 0.2 : 0.2 + Math.random() * 0.15;
+      const baseIntensity = VISEME_INTENSITY[viseme];
+
+      // Add slight natural variation
+      const jitter = (Math.sin(performance.now() * 0.015) * 0.08);
+      const amount = Math.max(0, Math.min(1, baseIntensity + jitter));
+
       setMouthOpen(amount);
       onLipSyncRef.current?.(amount, viseme);
     }

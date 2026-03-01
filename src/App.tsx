@@ -31,6 +31,9 @@ export default function App() {
 
   // Track the previous lastResponse to detect new messages
   const prevResponseRef = useRef("");
+  // Auto-dismiss chat bubble
+  const [showBubble, setShowBubble] = useState(false);
+  const bubbleTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Lip sync state ──
   const [lipSyncMouth, setLipSyncMouth] = useState(0);
@@ -79,6 +82,25 @@ export default function App() {
     lang: config?.sttLanguage ?? "en-US",
     continuous: false,
   });
+
+  // ── Auto-dismiss chat bubble ──
+  useEffect(() => {
+    if (thinking) {
+      // Show bubble when thinking starts
+      clearTimeout(bubbleTimerRef.current);
+      setShowBubble(true);
+    }
+  }, [thinking]);
+
+  useEffect(() => {
+    if (!lastResponse || lastResponse === prevResponseRef.current) return;
+    // New response arrived — show bubble, schedule dismiss
+    setShowBubble(true);
+    clearTimeout(bubbleTimerRef.current);
+    // Display time: ~80ms per character, minimum 2s, maximum 8s
+    const displayMs = Math.min(Math.max(lastResponse.length * 80, 2000), 8000);
+    bubbleTimerRef.current = setTimeout(() => setShowBubble(false), displayMs);
+  }, [lastResponse]);
 
   // ── Wake Word ──
   const [wakeWordFlash, setWakeWordFlash] = useState(false);
@@ -311,9 +333,9 @@ export default function App() {
         />
       </div>
 
-      {/* Chat bubble — shows AI response */}
-      {(lastResponse || thinking) && (
-        <div className="chat-bubble">
+      {/* Chat bubble — auto-dismisses after reading time */}
+      {showBubble && (lastResponse || thinking) && (
+        <div className="chat-bubble" onClick={() => setShowBubble(false)}>
           {thinking && !lastResponse ? "🤔 Thinking..." : lastResponse.slice(0, 200)}
           {lastResponse.length > 200 && "..."}
         </div>

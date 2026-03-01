@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRM } from "@pixiv/three-vrm";
 import type { Emotion } from "../lib/emotion";
+import { EMOTION_PRESETS } from "../lib/emotion";
 import type { PoseConfig, AnimationConfig, CameraConfig } from "../lib/config";
 import { DEFAULT_POSE, DEFAULT_ANIMATION, DEFAULT_CAMERA } from "../lib/config";
 import {
@@ -45,6 +46,7 @@ function applyFrame(
   speaking: boolean,
   mouthOpen: number | undefined,
   animSpeed: number,
+  emotion: Emotion,
 ) {
   const breathScale = anim.breathingIntensity / 100;
   const headScale = anim.headSwayIntensity / 100;
@@ -106,18 +108,36 @@ function applyFrame(
   const rs = bone(vrm, "rightShoulder");
   if (rs) rs.rotation.z = 0 + ad("rightShoulder", "rz");
 
-  // ── Expressions ──
-  // Action expressions (blink, lookLeft, etc.)
-  vrm.expressionManager?.setValue("blink", action.expressions.blink ?? 0);
-  vrm.expressionManager?.setValue("happy", action.expressions.happy ?? 0);
+  // ── Expressions: emotion base + action overlay ──
+  const emotionPreset = EMOTION_PRESETS[emotion] ?? EMOTION_PRESETS.neutral;
+
+  // Emotion-driven expressions (base layer)
+  const emotionExpr = emotionPreset.expressions;
+  vrm.expressionManager?.setValue("happy", emotionExpr.happy ?? 0);
+  vrm.expressionManager?.setValue("sad", emotionExpr.sad ?? 0);
+  vrm.expressionManager?.setValue("angry", emotionExpr.angry ?? 0);
+  vrm.expressionManager?.setValue("surprised", emotionExpr.surprised ?? 0);
+  vrm.expressionManager?.setValue("relaxed", emotionExpr.relaxed ?? 0);
+
+  // Action expressions (overlay — takes priority for blink, lookLeft, etc.)
+  vrm.expressionManager?.setValue("blink",
+    Math.max(action.expressions.blink ?? 0, emotionExpr.blink ?? 0));
   vrm.expressionManager?.setValue("lookLeft", action.expressions.lookLeft ?? 0);
   vrm.expressionManager?.setValue("lookRight", action.expressions.lookRight ?? 0);
   vrm.expressionManager?.setValue("lookUp", action.expressions.lookUp ?? 0);
 
-  // ── Mouth (speaking) ──
+  // If action has happy override (e.g., happyBounce), blend with emotion
+  if (action.expressions.happy) {
+    vrm.expressionManager?.setValue("happy",
+      Math.max(action.expressions.happy, emotionExpr.happy ?? 0));
+  }
+
+  // ── Mouth / Viseme (speaking) ──
+  // mouthOpen comes from useVoiceOutput's lip sync system (character-level visemes)
   if (mouthOpen !== undefined && mouthOpen > 0) {
     vrm.expressionManager?.setValue("aa", mouthOpen);
   } else if (speaking) {
+    // Fallback sine wave when no viseme data available
     const openAmount = (Math.sin(elapsed * 12 * speed) + 1) * 0.3;
     vrm.expressionManager?.setValue("aa", openAmount);
   } else {
@@ -145,12 +165,14 @@ export default function VRMViewer({
   const camRef = useRef(camConfig ?? DEFAULT_CAMERA);
   const speakingRef = useRef(speaking);
   const mouthOpenRef = useRef(mouthOpen);
+  const emotionRef = useRef(emotion);
 
   useEffect(() => { poseRef.current = poseConfig ?? DEFAULT_POSE; }, [poseConfig]);
   useEffect(() => { animRef.current = animConfig ?? DEFAULT_ANIMATION; }, [animConfig]);
   useEffect(() => { camRef.current = camConfig ?? DEFAULT_CAMERA; }, [camConfig]);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
   useEffect(() => { mouthOpenRef.current = mouthOpen; }, [mouthOpen]);
+  useEffect(() => { emotionRef.current = emotion; }, [emotion]);
 
   // Camera config reactive update
   useEffect(() => {
@@ -251,6 +273,7 @@ export default function VRMViewer({
           speakingRef.current,
           mouthOpenRef.current,
           animRef.current.animationSpeed,
+          emotionRef.current,
         );
 
         vrm.update(delta);
