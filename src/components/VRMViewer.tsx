@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRM } from "@pixiv/three-vrm";
 import type { Emotion } from "../lib/emotion";
+import type { PoseConfig, AnimationConfig, CameraConfig } from "../lib/config";
+import { DEFAULT_POSE, DEFAULT_ANIMATION, DEFAULT_CAMERA } from "../lib/config";
 
 interface VRMViewerProps {
   /** URL to the VRM model file */
@@ -13,19 +15,30 @@ interface VRMViewerProps {
   speaking: boolean;
   /** External lip sync mouth open amount (0-1). Overrides speaking animation when set. */
   mouthOpen?: number;
+  /** Pose configuration (arm angles, etc.) */
+  pose?: PoseConfig;
+  /** Animation configuration (breathing, sway, speed) */
+  animation?: AnimationConfig;
+  /** Camera configuration (position, FOV) */
+  camera?: CameraConfig;
 }
+
+/** Convert degrees to radians */
+const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
 /**
  * VRMViewer — Three.js scene that renders a VRM avatar
- *
- * This component creates a WebGL canvas with a transparent background,
- * loads a VRM model, and applies emotion-driven expressions and
- * idle animations. Designed to be the core visual element of ClawBody.
  */
-export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VRMViewerProps) {
+export default function VRMViewer({
+  modelUrl, emotion, speaking, mouthOpen,
+  pose: poseConfig,
+  animation: animConfig,
+  camera: camConfig,
+}: VRMViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const vrmRef = useRef<VRM | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const clockRef = useRef(new THREE.Clock());
   const hipsBaseY = useRef<number | null>(null);
 
@@ -33,61 +46,94 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
   const emotionRef = useRef(emotion);
   const speakingRef = useRef(speaking);
   const mouthOpenRef = useRef(mouthOpen);
+  const poseRef = useRef(poseConfig ?? DEFAULT_POSE);
+  const animRef = useRef(animConfig ?? DEFAULT_ANIMATION);
+  const camRef = useRef(camConfig ?? DEFAULT_CAMERA);
+
   useEffect(() => { emotionRef.current = emotion; }, [emotion]);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
   useEffect(() => { mouthOpenRef.current = mouthOpen; }, [mouthOpen]);
+  useEffect(() => { poseRef.current = poseConfig ?? DEFAULT_POSE; }, [poseConfig]);
+  useEffect(() => { animRef.current = animConfig ?? DEFAULT_ANIMATION; }, [animConfig]);
+  useEffect(() => { camRef.current = camConfig ?? DEFAULT_CAMERA; }, [camConfig]);
+
+  // Apply pose whenever config changes
+  useEffect(() => {
+    const vrm = vrmRef.current;
+    if (!vrm) return;
+    const p = poseConfig ?? DEFAULT_POSE;
+    const armRad = deg2rad(p.armDown);
+    const elbowRad = deg2rad(p.elbowBend);
+
+    const leftUpperArm = vrm.humanoid?.getNormalizedBoneNode("leftUpperArm");
+    const rightUpperArm = vrm.humanoid?.getNormalizedBoneNode("rightUpperArm");
+    const leftLowerArm = vrm.humanoid?.getNormalizedBoneNode("leftLowerArm");
+    const rightLowerArm = vrm.humanoid?.getNormalizedBoneNode("rightLowerArm");
+
+    if (leftUpperArm) leftUpperArm.rotation.z = -armRad;
+    if (rightUpperArm) rightUpperArm.rotation.z = armRad;
+    if (leftLowerArm) leftLowerArm.rotation.z = -elbowRad;
+    if (rightLowerArm) rightLowerArm.rotation.z = elbowRad;
+  }, [poseConfig]);
+
+  // Apply camera config whenever it changes
+  useEffect(() => {
+    const camera = cameraRef.current;
+    if (!camera) return;
+    const c = camConfig ?? DEFAULT_CAMERA;
+    camera.fov = c.fov;
+    camera.position.set(0, c.cameraHeight, c.cameraDistance);
+    camera.lookAt(0, c.lookAtHeight, 0);
+    camera.updateProjectionMatrix();
+  }, [camConfig]);
 
   /**
-   * Apply idle breathing animation to the VRM model.
-   * Subtle vertical oscillation to make the character feel alive.
+   * Apply idle animation driven by animRef config.
    */
   const applyIdleAnimation = useCallback((vrm: VRM, elapsed: number) => {
-    // Gentle breathing motion — use absolute position, not accumulation
+    const a = animRef.current;
+    const speed = a.animationSpeed;
+    const breathScale = a.breathingIntensity / 100;
+    const headScale = a.headSwayIntensity / 100;
+
+    // Breathing — hips Y oscillation
     const hips = vrm.humanoid?.getNormalizedBoneNode("hips");
     if (hips) {
-      // Capture base Y position on first call
       if (hipsBaseY.current === null) {
         hipsBaseY.current = hips.position.y;
       }
-      hips.position.y = hipsBaseY.current + Math.sin(elapsed * 1.5) * 0.002;
+      hips.position.y = hipsBaseY.current + Math.sin(elapsed * 1.5 * speed) * 0.003 * breathScale;
     }
 
-    // Subtle head sway
-    const head = vrm.humanoid?.getNormalizedBoneNode("head");
-    if (head) {
-      head.rotation.y = Math.sin(elapsed * 0.5) * 0.03;
-      head.rotation.z = Math.sin(elapsed * 0.3) * 0.01;
-    }
-
-    // Subtle spine breathing (chest expansion)
+    // Spine breathing (chest expand)
     const spine = vrm.humanoid?.getNormalizedBoneNode("spine");
     if (spine) {
-      spine.rotation.x = Math.sin(elapsed * 1.5) * 0.008;
+      spine.rotation.x = Math.sin(elapsed * 1.5 * speed) * 0.012 * breathScale;
+    }
+
+    // Head sway
+    const head = vrm.humanoid?.getNormalizedBoneNode("head");
+    if (head) {
+      head.rotation.y = Math.sin(elapsed * 0.5 * speed) * 0.05 * headScale;
+      head.rotation.z = Math.sin(elapsed * 0.3 * speed) * 0.02 * headScale;
     }
   }, []);
 
   /**
-   * Simulate mouth movement when speaking.
-   * If external mouthOpen is provided (from TTS lip sync), use that directly.
-   * Otherwise falls back to a simple sine wave oscillation.
+   * Mouth animation for speaking.
    */
   const applySpeakingAnimation = useCallback((vrm: VRM, elapsed: number) => {
     const externalMouth = mouthOpenRef.current;
-
-    // If external lip sync is driving the mouth, use it directly
     if (externalMouth !== undefined && externalMouth > 0) {
       vrm.expressionManager?.setValue("aa", externalMouth);
       return;
     }
-
     if (!speakingRef.current) {
-      // Close mouth when not speaking
       vrm.expressionManager?.setValue("aa", 0);
       return;
     }
-
-    // Fallback: oscillate mouth open/close for speech
-    const openAmount = (Math.sin(elapsed * 12) + 1) * 0.3;
+    const speed = animRef.current.animationSpeed;
+    const openAmount = (Math.sin(elapsed * 12 * speed) + 1) * 0.3;
     vrm.expressionManager?.setValue("aa", openAmount);
   }, []);
 
@@ -96,46 +142,43 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
     const container = containerRef.current;
     if (!container) return;
 
-    // --- Scene setup ---
     const scene = new THREE.Scene();
+    const c = camRef.current;
 
     const camera = new THREE.PerspectiveCamera(
-      28, // Slightly narrower FOV to reduce edge distortion
+      c.fov,
       container.clientWidth / container.clientHeight,
       0.1,
       20,
     );
-    camera.position.set(0, 1.25, 2.8); // Pull back slightly, lower camera
-    camera.lookAt(0, 1.15, 0); // Center on upper chest to keep head fully visible
+    camera.position.set(0, c.cameraHeight, c.cameraDistance);
+    camera.lookAt(0, c.lookAtHeight, 0);
+    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({
-      alpha: true, // Transparent background — critical for desktop overlay
+      alpha: true,
       antialias: true,
       premultipliedAlpha: false,
     });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setClearColor(0x000000, 0); // Fully transparent
+    renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendererRef.current = renderer;
 
     container.appendChild(renderer.domElement);
 
-    // --- Lighting ---
-    // Soft ambient + directional for natural character lighting
+    // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
-
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     directionalLight.position.set(1, 2, 3);
     scene.add(directionalLight);
-
-    // Subtle rim light from behind for depth
     const rimLight = new THREE.DirectionalLight(0x88ccff, 0.4);
     rimLight.position.set(-1, 1, -2);
     scene.add(rimLight);
 
-    // --- Load VRM model ---
+    // Load VRM model
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
@@ -148,33 +191,30 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
           return;
         }
 
-        // VRM models face +Z by default — try both orientations
-        // Some models need PI rotation, others don't
         vrm.scene.rotation.y = 0;
         scene.add(vrm.scene);
         vrmRef.current = vrm;
 
-        // Apply natural rest pose (fix T-pose)
-        // Lower arms from horizontal T-pose to a relaxed position
+        // Apply initial rest pose from config
+        const p = poseRef.current;
+        const armRad = deg2rad(p.armDown);
+        const elbowRad = deg2rad(p.elbowBend);
+
         const leftUpperArm = vrm.humanoid?.getNormalizedBoneNode("leftUpperArm");
         const rightUpperArm = vrm.humanoid?.getNormalizedBoneNode("rightUpperArm");
         const leftLowerArm = vrm.humanoid?.getNormalizedBoneNode("leftLowerArm");
         const rightLowerArm = vrm.humanoid?.getNormalizedBoneNode("rightLowerArm");
 
-        if (leftUpperArm) {
-          leftUpperArm.rotation.z = -1.1; // ~63° down from horizontal
-        }
-        if (rightUpperArm) {
-          rightUpperArm.rotation.z = 1.1;
-        }
-        if (leftLowerArm) {
-          leftLowerArm.rotation.z = -0.15; // Slight bend at elbow
-        }
-        if (rightLowerArm) {
-          rightLowerArm.rotation.z = 0.15;
-        }
+        if (leftUpperArm) leftUpperArm.rotation.z = -armRad;
+        if (rightUpperArm) rightUpperArm.rotation.z = armRad;
+        if (leftLowerArm) leftLowerArm.rotation.z = -elbowRad;
+        if (rightLowerArm) rightLowerArm.rotation.z = elbowRad;
 
-        console.log("[ClawBody] VRM model loaded, rest pose applied");
+        // Capture hips base Y for breathing
+        const hips = vrm.humanoid?.getNormalizedBoneNode("hips");
+        if (hips) hipsBaseY.current = hips.position.y;
+
+        console.log("[ClawBody] VRM model loaded, pose applied");
       },
       (progress) => {
         const pct = ((progress.loaded / progress.total) * 100).toFixed(1);
@@ -185,27 +225,24 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
       },
     );
 
-    // --- Animation loop ---
+    // Animation loop
     const clock = clockRef.current;
     let frameId: number;
-
     const animate = () => {
       frameId = requestAnimationFrame(animate);
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
-
       const vrm = vrmRef.current;
       if (vrm) {
         applyIdleAnimation(vrm, elapsed);
         applySpeakingAnimation(vrm, elapsed);
         vrm.update(delta);
       }
-
       renderer.render(scene, camera);
     };
     animate();
 
-    // --- Handle resize ---
+    // Resize
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth;
@@ -216,12 +253,13 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
     };
     window.addEventListener("resize", handleResize);
 
-    // --- Cleanup ---
+    // Cleanup
     return () => {
       cancelAnimationFrame(frameId);
       window.removeEventListener("resize", handleResize);
       renderer.dispose();
       container.removeChild(renderer.domElement);
+      hipsBaseY.current = null;
       if (vrmRef.current) {
         vrmRef.current.scene.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {

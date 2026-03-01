@@ -7,6 +7,33 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
+export interface PoseConfig {
+  /** Upper arm rotation in degrees (0 = horizontal T-pose, 90 = arms down) */
+  armDown: number;
+  /** Lower arm bend in degrees (0 = straight, positive = bend inward) */
+  elbowBend: number;
+}
+
+export interface AnimationConfig {
+  /** Breathing intensity (0 = none, 100 = exaggerated) */
+  breathingIntensity: number;
+  /** Head sway intensity (0 = none, 100 = large sway) */
+  headSwayIntensity: number;
+  /** Overall animation speed multiplier (0.1 = very slow, 3.0 = fast) */
+  animationSpeed: number;
+}
+
+export interface CameraConfig {
+  /** Camera height (Y position, roughly the focal height in model units) */
+  cameraHeight: number;
+  /** Camera distance from model (Z position) */
+  cameraDistance: number;
+  /** Look-at target height */
+  lookAtHeight: number;
+  /** Field of view in degrees */
+  fov: number;
+}
+
 export interface AppConfig {
   modelPath: string;
   gatewayUrl: string;
@@ -17,6 +44,10 @@ export interface AppConfig {
   alwaysOnTop: boolean;
   characterScale: number;
   autoReconnect: boolean;
+  // Pose & Animation
+  pose: PoseConfig;
+  animation: AnimationConfig;
+  camera: CameraConfig;
   // Voice & Camera
   voiceInputEnabled: boolean;
   voiceOutputEnabled: boolean;
@@ -28,6 +59,24 @@ export interface AppConfig {
   autoSendVoice: boolean;
 }
 
+export const DEFAULT_POSE: PoseConfig = {
+  armDown: 63,
+  elbowBend: 8,
+};
+
+export const DEFAULT_ANIMATION: AnimationConfig = {
+  breathingIntensity: 30,
+  headSwayIntensity: 30,
+  animationSpeed: 1.0,
+};
+
+export const DEFAULT_CAMERA: CameraConfig = {
+  cameraHeight: 1.25,
+  cameraDistance: 2.8,
+  lookAtHeight: 1.15,
+  fov: 28,
+};
+
 export const DEFAULT_CONFIG: AppConfig = {
   modelPath: "",
   gatewayUrl: "ws://localhost:18789",
@@ -38,6 +87,10 @@ export const DEFAULT_CONFIG: AppConfig = {
   alwaysOnTop: true,
   characterScale: 1.0,
   autoReconnect: true,
+  // Pose & Animation
+  pose: { ...DEFAULT_POSE },
+  animation: { ...DEFAULT_ANIMATION },
+  camera: { ...DEFAULT_CAMERA },
   // Voice & Camera defaults
   voiceInputEnabled: false,
   voiceOutputEnabled: false,

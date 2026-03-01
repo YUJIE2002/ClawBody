@@ -24,6 +24,13 @@ pub struct AppConfig {
     pub always_on_top: bool,
     pub character_scale: f64,
     pub auto_reconnect: bool,
+    // Pose & Animation
+    #[serde(default)]
+    pub pose: PoseConfig,
+    #[serde(default)]
+    pub animation: AnimationConfig,
+    #[serde(default)]
+    pub camera: CameraViewConfig,
     // Voice & Camera
     #[serde(default)]
     pub voice_input_enabled: bool,
@@ -43,6 +50,78 @@ pub struct AppConfig {
     pub auto_send_voice: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PoseConfig {
+    #[serde(default = "default_arm_down")]
+    pub arm_down: f64,
+    #[serde(default = "default_elbow_bend")]
+    pub elbow_bend: f64,
+}
+
+fn default_arm_down() -> f64 { 63.0 }
+fn default_elbow_bend() -> f64 { 8.0 }
+
+impl Default for PoseConfig {
+    fn default() -> Self {
+        Self { arm_down: 63.0, elbow_bend: 8.0 }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AnimationConfig {
+    #[serde(default = "default_breathing_intensity")]
+    pub breathing_intensity: f64,
+    #[serde(default = "default_head_sway_intensity")]
+    pub head_sway_intensity: f64,
+    #[serde(default = "default_animation_speed")]
+    pub animation_speed: f64,
+}
+
+fn default_breathing_intensity() -> f64 { 30.0 }
+fn default_head_sway_intensity() -> f64 { 30.0 }
+fn default_animation_speed() -> f64 { 1.0 }
+
+impl Default for AnimationConfig {
+    fn default() -> Self {
+        Self {
+            breathing_intensity: 30.0,
+            head_sway_intensity: 30.0,
+            animation_speed: 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CameraViewConfig {
+    #[serde(default = "default_camera_height")]
+    pub camera_height: f64,
+    #[serde(default = "default_camera_distance")]
+    pub camera_distance: f64,
+    #[serde(default = "default_look_at_height")]
+    pub look_at_height: f64,
+    #[serde(default = "default_fov")]
+    pub fov: f64,
+}
+
+fn default_camera_height() -> f64 { 1.25 }
+fn default_camera_distance() -> f64 { 2.8 }
+fn default_look_at_height() -> f64 { 1.15 }
+fn default_fov() -> f64 { 28.0 }
+
+impl Default for CameraViewConfig {
+    fn default() -> Self {
+        Self {
+            camera_height: 1.25,
+            camera_distance: 2.8,
+            look_at_height: 1.15,
+            fov: 28.0,
+        }
+    }
+}
+
 fn default_tts_rate() -> f64 { 1.0 }
 fn default_tts_pitch() -> f64 { 1.0 }
 fn default_stt_language() -> String { "en-US".to_string() }
@@ -59,6 +138,9 @@ impl Default for AppConfig {
             always_on_top: true,
             character_scale: 1.0,
             auto_reconnect: true,
+            pose: PoseConfig::default(),
+            animation: AnimationConfig::default(),
+            camera: CameraViewConfig::default(),
             voice_input_enabled: false,
             voice_output_enabled: false,
             camera_enabled: false,

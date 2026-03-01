@@ -423,7 +423,27 @@ html:has(.settings-panel) #root {
   font-size: 15px;
   font-weight: 600;
   color: #e0e0e0;
-  margin: 0 0 14px 0;
+  margin: 24px 0 14px 0;
+}
+
+h3.section-title:first-of-type {
+  margin-top: 0;
+}
+
+.btn-reset {
+  padding: 6px 14px;
+  border: 1px solid #3a3a6a;
+  border-radius: 6px;
+  background: transparent;
+  color: #a0a0c0;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-reset:hover {
+  background: #2a2a4a;
+  color: #fff;
+  border-color: #6366f1;
 }
 
 .warning-box {

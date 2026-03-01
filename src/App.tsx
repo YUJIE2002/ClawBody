@@ -258,6 +258,9 @@ export default function App() {
           emotion={emotion}
           speaking={speaking || voiceOutput.speaking}
           mouthOpen={voiceOutput.speaking ? lipSyncMouth : undefined}
+          pose={config?.pose}
+          animation={config?.animation}
+          camera={config?.camera}
         />
         <div
           style={{
