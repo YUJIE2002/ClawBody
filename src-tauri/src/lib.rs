@@ -4,6 +4,8 @@
 //! model management, and bridges the frontend VRM renderer to the
 //! OpenClaw agent framework.
 
+mod speech;
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -346,6 +348,10 @@ pub fn run() {
             move_window,
             resize_window,
             quit_app,
+            // Native speech recognition (macOS)
+            speech::is_native_speech_available,
+            speech::start_native_speech,
+            speech::stop_native_speech,
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();

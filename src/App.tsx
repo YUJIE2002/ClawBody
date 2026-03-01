@@ -7,6 +7,7 @@ import ContextMenu, { type MenuItem } from "./components/ContextMenu";
 import SettingsPanel from "./components/SettingsPanel";
 import { useOpenClaw } from "./hooks/useOpenClaw";
 import { useVoiceInput } from "./hooks/useVoiceInput";
+import { useNativeSpeech } from "./hooks/useNativeSpeech";
 import { useVoiceOutput } from "./hooks/useVoiceOutput";
 import { useCamera } from "./hooks/useCamera";
 import { useWakeWord } from "./hooks/useWakeWord";
@@ -86,12 +87,21 @@ export default function App() {
     wakeWordRef.current.resume();
   }, []);
 
-  const voiceInput = useVoiceInput({
+  const webVoiceInput = useVoiceInput({
     onResult: handleVoiceResult,
     onEnd: handleVoiceEnd,
-    lang: config?.sttLanguage ?? "en-US",
+    lang: config?.sttLanguage ?? "zh-CN",
     continuous: false,
   });
+
+  const nativeVoiceInput = useNativeSpeech({
+    onResult: handleVoiceResult,
+    onEnd: handleVoiceEnd,
+    lang: config?.sttLanguage ?? "zh-CN",
+  });
+
+  // Prefer native speech (macOS SFSpeechRecognizer), fall back to Web Speech API
+  const voiceInput = nativeVoiceInput.supported ? nativeVoiceInput : webVoiceInput;
 
   // ── Auto-dismiss chat bubble ──
   useEffect(() => {

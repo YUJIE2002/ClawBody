@@ -6,5 +6,7 @@
     <string>ClawBody uses the camera to let your AI companion see you.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>ClawBody uses the microphone for voice input and wake word detection.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>ClawBody uses speech recognition to convert your voice to text.</string>
 </dict>
 </plist>
