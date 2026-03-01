@@ -5,7 +5,7 @@ export default function AboutTab() {
 
       <div className="about-hero">
         <span className="about-icon">🎭</span>
-        <h3>ClawBody v0.1.0</h3>
+        <h3>ClawBody v1.0.0</h3>
         <p>Give Your AI a Body</p>
       </div>
 

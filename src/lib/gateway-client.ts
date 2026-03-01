@@ -232,7 +232,7 @@ export class GatewayClient {
       maxProtocol: 3,
       client: {
         id: "openclaw-control-ui",
-        version: "0.1.0",
+        version: "1.0.0",
         platform: "web",
         mode: "webchat",
         instanceId: this.getOrCreateDeviceId(),
@@ -241,7 +241,7 @@ export class GatewayClient {
       scopes: ["operator.read", "operator.write"],
       caps: [],
       locale: navigator.language || "en-US",
-      userAgent: `ClawBody/0.1.0`,
+      userAgent: `ClawBody/1.0.0`,
     };
 
     // Auth
