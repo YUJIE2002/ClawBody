@@ -230,12 +230,12 @@ export class GatewayClient {
       minProtocol: 3,
       maxProtocol: 3,
       client: {
-        id: "clawbody",
+        id: "openclaw-control-ui",
         displayName: "ClawBody",
         version: "0.1.0",
-        platform: navigator.platform?.includes("Win") ? "windows" :
-                  navigator.platform?.includes("Mac") ? "macos" : "linux",
-        mode: "operator",
+        platform: "web",
+        mode: "webchat",
+        instanceId: this.getOrCreateDeviceId(),
       },
       role: "operator",
       scopes: ["operator.read", "operator.write"],
