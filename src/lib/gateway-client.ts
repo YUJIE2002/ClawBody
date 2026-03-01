@@ -1,8 +1,9 @@
 /**
  * OpenClaw Gateway WebSocket Client
  *
- * Implements the JSON-RPC-style protocol used by the OpenClaw Gateway.
- * Supports: chat.send, chat.history, chat.abort, and streaming chat events.
+ * Implements the OpenClaw Gateway WS protocol (v3).
+ * Handshake: wait for connect.challenge → send req:connect → receive res:hello-ok
+ * Then: req/res JSON-RPC + streamed events.
  */
 
 type RequestId = number;
@@ -64,6 +65,7 @@ export class GatewayClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private intentionalClose = false;
   private _connected = false;
+  private handshakeCompleted = false;
 
   constructor(opts: GatewayClientOptions) {
     this.options = {
@@ -80,7 +82,7 @@ export class GatewayClient {
   }
 
   get connected(): boolean {
-    return this._connected;
+    return this._connected && this.handshakeCompleted;
   }
 
   /**
@@ -90,23 +92,15 @@ export class GatewayClient {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
     this.intentionalClose = false;
+    this.handshakeCompleted = false;
 
     try {
       this.ws = new WebSocket(this.options.url);
 
       this.ws.onopen = () => {
-        console.log("[ClawBody] Gateway WS connected");
-        // Authenticate with token
-        if (this.options.token) {
-          this.sendRaw({
-            type: "connect",
-            params: {
-              auth: { token: this.options.token },
-            },
-          });
-        }
+        console.log("[ClawBody] Gateway WS TCP connected, waiting for challenge...");
         this._connected = true;
-        this.options.onConnect();
+        // Don't call onConnect yet — wait for successful handshake
       };
 
       this.ws.onmessage = (event) => {
@@ -119,9 +113,13 @@ export class GatewayClient {
       };
 
       this.ws.onclose = (event) => {
+        const wasHandshaked = this.handshakeCompleted;
         this._connected = false;
+        this.handshakeCompleted = false;
         console.log("[ClawBody] Gateway WS closed:", event.code, event.reason);
-        this.options.onDisconnect(event.reason || `code ${event.code}`);
+        if (wasHandshaked) {
+          this.options.onDisconnect(event.reason || `code ${event.code}`);
+        }
 
         // Reject all pending requests
         for (const [, req] of this.pending) {
@@ -155,6 +153,7 @@ export class GatewayClient {
    */
   disconnect(): void {
     this.intentionalClose = true;
+    this.handshakeCompleted = false;
     clearTimeout(this.reconnectTimer);
     this.ws?.close();
     this.ws = null;
@@ -166,7 +165,7 @@ export class GatewayClient {
    */
   async request<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     return new Promise((resolve, reject) => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.handshakeCompleted) {
         reject(new Error("Not connected"));
         return;
       }
@@ -179,7 +178,7 @@ export class GatewayClient {
 
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timeout });
 
-      this.sendRaw({ id, method, params });
+      this.sendRaw({ type: "req", id, method, params });
     });
   }
 
@@ -222,26 +221,165 @@ export class GatewayClient {
   }
 
   /**
+   * Send the connect handshake to the Gateway.
+   */
+  private sendConnectHandshake(nonce?: string, ts?: number): void {
+    const id = this.nextId++;
+
+    const connectParams: Record<string, unknown> = {
+      minProtocol: 3,
+      maxProtocol: 3,
+      client: {
+        id: "clawbody",
+        displayName: "ClawBody",
+        version: "0.1.0",
+        platform: navigator.platform?.includes("Win") ? "windows" :
+                  navigator.platform?.includes("Mac") ? "macos" : "linux",
+        mode: "operator",
+      },
+      role: "operator",
+      scopes: ["operator.read", "operator.write"],
+      caps: [],
+      locale: navigator.language || "en-US",
+      userAgent: `ClawBody/0.1.0`,
+    };
+
+    // Auth
+    if (this.options.token) {
+      connectParams.auth = { token: this.options.token };
+    }
+
+    // Device identity (minimal for localhost connections)
+    const deviceId = this.getOrCreateDeviceId();
+    connectParams.device = { id: deviceId };
+
+    // If server sent a nonce, include it (for non-local connections)
+    if (nonce) {
+      (connectParams.device as Record<string, unknown>).nonce = nonce;
+      (connectParams.device as Record<string, unknown>).signedAt = ts || Date.now();
+    }
+
+    this.pending.set(id, {
+      resolve: (result: unknown) => {
+        const payload = result as Record<string, unknown>;
+        if (payload?.type === "hello-ok" || payload) {
+          console.log("[ClawBody] Gateway handshake OK:", payload);
+          this.handshakeCompleted = true;
+          this.options.onConnect();
+
+          // Store device token if issued
+          const auth = payload?.auth as Record<string, unknown> | undefined;
+          if (auth?.deviceToken) {
+            try {
+              localStorage.setItem("clawbody:deviceToken", String(auth.deviceToken));
+              console.log("[ClawBody] Device token stored");
+            } catch { /* ignore */ }
+          }
+        }
+      },
+      reject: (error: Error) => {
+        console.error("[ClawBody] Gateway handshake failed:", error);
+        this.options.onError(error);
+        this.ws?.close();
+      },
+      timeout: setTimeout(() => {
+        this.pending.delete(id);
+        console.error("[ClawBody] Gateway handshake timeout");
+        this.options.onError(new Error("Handshake timeout"));
+        this.ws?.close();
+      }, 15000),
+    });
+
+    this.sendRaw({ type: "req", id, method: "connect", params: connectParams });
+  }
+
+  /**
+   * Get or create a stable device ID for this ClawBody instance.
+   */
+  private getOrCreateDeviceId(): string {
+    const key = "clawbody:deviceId";
+    let deviceId: string | null = null;
+    try {
+      deviceId = localStorage.getItem(key);
+    } catch { /* ignore */ }
+    if (!deviceId) {
+      deviceId = `clawbody-${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`;
+      try {
+        localStorage.setItem(key, deviceId);
+      } catch { /* ignore */ }
+    }
+    return deviceId;
+  }
+
+  /**
    * Handle an incoming message from the Gateway.
    */
   private handleMessage(data: Record<string, unknown>): void {
-    // Response to a request
-    if (typeof data.id === "number" && this.pending.has(data.id)) {
-      const req = this.pending.get(data.id)!;
-      this.pending.delete(data.id);
-      clearTimeout(req.timeout);
+    const frameType = data.type as string;
 
-      if (data.error) {
-        req.reject(new Error(String((data.error as Record<string, unknown>)?.message ?? data.error)));
-      } else {
-        req.resolve(data.result);
+    // --- Event frames ---
+    if (frameType === "event") {
+      const eventName = data.event as string;
+      const payload = (data.payload ?? {}) as Record<string, unknown>;
+
+      // connect.challenge — server wants us to authenticate
+      if (eventName === "connect.challenge") {
+        console.log("[ClawBody] Received connect challenge");
+        this.sendConnectHandshake(
+          payload.nonce as string | undefined,
+          payload.ts as number | undefined,
+        );
+        return;
+      }
+
+      // agent — streamed AI response
+      if (eventName === "agent") {
+        const chatEvent: ChatEvent = {
+          type: "chat",
+          text: payload.text as string | undefined,
+          fullText: payload.fullText as string | undefined,
+          done: payload.done as boolean | undefined,
+          runId: payload.runId as string | undefined,
+          sessionKey: payload.sessionKey as string | undefined,
+        };
+        this.options.onChat(chatEvent);
+        return;
+      }
+
+      // tick — keepalive, ignore
+      if (eventName === "tick") return;
+
+      // shutdown — gateway restarting
+      if (eventName === "shutdown") {
+        console.log("[ClawBody] Gateway shutting down:", payload.reason);
+        return;
+      }
+
+      console.log("[ClawBody] Unhandled event:", eventName, payload);
+      return;
+    }
+
+    // --- Response frames ---
+    if (frameType === "res") {
+      const id = data.id as number;
+      const pending = this.pending.get(id);
+      if (pending) {
+        this.pending.delete(id);
+        clearTimeout(pending.timeout);
+        if (data.ok) {
+          pending.resolve(data.payload);
+        } else {
+          const errPayload = (data.error ?? data.payload ?? {}) as Record<string, unknown>;
+          pending.reject(new Error(String(errPayload.message ?? errPayload.code ?? "Unknown error")));
+        }
       }
       return;
     }
 
-    // Chat event (streamed response)
-    if (data.type === "chat" || data.method === "chat") {
-      const event: ChatEvent = {
+    // --- Legacy / unknown frames ---
+    // Some older gateway versions may send chat events directly
+    if (frameType === "chat" || data.method === "chat") {
+      const chatEvent: ChatEvent = {
         type: "chat",
         text: data.text as string | undefined,
         fullText: data.fullText as string | undefined,
@@ -249,18 +387,11 @@ export class GatewayClient {
         runId: data.runId as string | undefined,
         sessionKey: data.sessionKey as string | undefined,
       };
-      this.options.onChat(event);
+      this.options.onChat(chatEvent);
       return;
     }
 
-    // Connection ack
-    if (data.type === "connected" || data.type === "connect.ack") {
-      console.log("[ClawBody] Gateway authenticated");
-      return;
-    }
-
-    // Other events — log for debugging
-    console.log("[ClawBody] Gateway event:", data);
+    console.log("[ClawBody] Unknown frame:", data);
   }
 
   /**
