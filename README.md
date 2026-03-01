@@ -49,20 +49,23 @@ The character is connected to [OpenClaw](https://github.com/openclaw/openclaw), 
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| 🖼️ VRM Character Rendering | 🚧 | Three.js + @pixiv/three-vrm 3D avatar display |
-| 🪟 Transparent Desktop Overlay | 🚧 | Frameless, always-on-top, click-through capable |
-| 😊 Emotion Expressions | 🚧 | AI emotions → VRM blend shape animations |
-| 🗣️ Lip Sync | 🚧 | Mouth animation synchronized with TTS audio |
-| 🧠 OpenClaw Integration | 🚧 | WebSocket bridge to AI agent gateway |
-| 💤 Idle Animations | 🚧 | Breathing, blinking, subtle head movement |
-| 🎤 Voice Input (STT) | 📋 | Speak to your AI through the companion |
-| 🔊 Voice Output (TTS) | 📋 | AI speaks back with animated character |
-| 🖱️ Draggable Window | 🚧 | Drag the character anywhere on screen |
-| 📌 System Tray | 🚧 | Quick access via tray icon |
-| 🎭 Custom VRM Models | 📋 | Load any VRM model from VRoid Hub or custom |
+| 🖼️ VRM Character Rendering | ✅ | Three.js + @pixiv/three-vrm 3D avatar display |
+| 🪟 Transparent Desktop Overlay | ✅ | Frameless, always-on-top, click-through capable |
+| 😊 Emotion Expressions | ✅ | AI emotions → VRM blend shape animations (8 emotion states) |
+| 🗣️ Lip Sync | ✅ | Character-level viseme mouth animation with TTS |
+| 🧠 OpenClaw Integration | ✅ | WebSocket bridge to AI agent gateway (ws:// & wss://) |
+| 💤 Idle Animations | ✅ | 11 idle actions: blink, look around, head tilt, weight shift, etc. |
+| 🎤 Voice Input (STT) | ✅ | Speech-to-text via Web Speech API |
+| 🔊 Voice Output (TTS) | ✅ | Text-to-speech with lip sync animation |
+| 📷 Camera Vision | ✅ | Webcam frames attached to messages for AI vision |
+| 🗣️ Wake Word | ✅ | Always-on wake word detection (e.g., "顾衍") |
+| 🖱️ Draggable Window | ✅ | Drag the character anywhere on screen |
+| 📌 System Tray | ✅ | Tray icon support via Tauri |
+| 🎭 Custom VRM Models | ✅ | Import any VRM model (VRoid Hub, VRoid Studio, etc.) |
+| ⚙️ Settings Panel | ✅ | Full GUI: pose, animation, camera, voice, connection config |
 | 🔌 Plugin System | 📋 | Extensible animation and behavior plugins |
 
-> 🚧 = In Progress &nbsp; 📋 = Planned
+> ✅ = Shipped &nbsp; 📋 = Planned
 
 ## Tech Stack
 
@@ -88,15 +91,14 @@ The character is connected to [OpenClaw](https://github.com/openclaw/openclaw), 
 git clone https://github.com/YUJIE2002/ClawBody.git
 cd ClawBody
 
-# Install dependencies
-npm install
-
-# Download a test VRM model (~10MB)
-npm run setup
+# One-click setup (checks deps, installs npm packages, downloads VRM model)
+node scripts/setup.mjs
 
 # Run in development mode
 cargo tauri dev
 ```
+
+> **Tip:** For production builds, run `cargo tauri build` to produce native installers (DMG on Mac, NSIS on Windows).
 
 ### Custom VRM Model
 
@@ -212,12 +214,17 @@ ClawBody 是一个桌面伴侣应用，它在你的桌面上渲染一个 3D VRM 
 
 ### 特性
 
-- 🖼️ VRM 3D 角色渲染（Three.js）
+- 🖼️ VRM 3D 角色渲染（Three.js + @pixiv/three-vrm）
 - 🪟 透明桌面覆盖层（无边框、始终置顶）
-- 😊 情感表达（AI 情绪 → VRM 表情动画）
-- 🗣️ 口型同步（配合 TTS 语音输出）
-- 🧠 OpenClaw 集成（WebSocket 实时通信）
-- 💤 待机动画（呼吸、眨眼、微微摇头）
+- 😊 情感表达（8 种情绪状态 → VRM 表情动画）
+- 🗣️ 口型同步（字符级 viseme 动画配合 TTS）
+- 🧠 OpenClaw 集成（WebSocket 实时通信，支持 ws:// 和 wss://）
+- 💤 11 种待机动画（呼吸、眨眼、环顾、点头、伸懒腰等）
+- 🎤 语音输入（Web Speech API 语音转文字）
+- 🔊 语音输出（TTS + 嘴型同步）
+- 📷 摄像头视觉（附带摄像头帧给 AI）
+- 🗣️ 语音唤醒（始终聆听唤醒词）
+- ⚙️ 全功能设置面板
 
 ### 技术栈
 
@@ -231,8 +238,7 @@ ClawBody 是一个桌面伴侣应用，它在你的桌面上渲染一个 3D VRM 
 ```bash
 git clone https://github.com/YUJIE2002/ClawBody.git
 cd ClawBody
-npm install
-npm run setup  # 下载测试用 VRM 模型
+node scripts/setup.mjs  # 一键安装（检查依赖、安装 npm 包、下载 VRM 模型）
 cargo tauri dev
 ```
 
