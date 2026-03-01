@@ -27,6 +27,7 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
   const vrmRef = useRef<VRM | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const clockRef = useRef(new THREE.Clock());
+  const hipsBaseY = useRef<number | null>(null);
 
   // Store latest props in refs for animation loop access
   const emotionRef = useRef(emotion);
@@ -41,11 +42,14 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
    * Subtle vertical oscillation to make the character feel alive.
    */
   const applyIdleAnimation = useCallback((vrm: VRM, elapsed: number) => {
-    // Gentle breathing motion
-    const breathe = Math.sin(elapsed * 1.5) * 0.001;
+    // Gentle breathing motion — use absolute position, not accumulation
     const hips = vrm.humanoid?.getNormalizedBoneNode("hips");
     if (hips) {
-      hips.position.y += breathe;
+      // Capture base Y position on first call
+      if (hipsBaseY.current === null) {
+        hipsBaseY.current = hips.position.y;
+      }
+      hips.position.y = hipsBaseY.current + Math.sin(elapsed * 1.5) * 0.002;
     }
 
     // Subtle head sway
@@ -53,6 +57,12 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
     if (head) {
       head.rotation.y = Math.sin(elapsed * 0.5) * 0.03;
       head.rotation.z = Math.sin(elapsed * 0.3) * 0.01;
+    }
+
+    // Subtle spine breathing (chest expansion)
+    const spine = vrm.humanoid?.getNormalizedBoneNode("spine");
+    if (spine) {
+      spine.rotation.x = Math.sin(elapsed * 1.5) * 0.008;
     }
   }, []);
 
@@ -152,16 +162,16 @@ export default function VRMViewer({ modelUrl, emotion, speaking, mouthOpen }: VR
         const rightLowerArm = vrm.humanoid?.getNormalizedBoneNode("rightLowerArm");
 
         if (leftUpperArm) {
-          leftUpperArm.rotation.z = 1.1; // ~63° down from horizontal
+          leftUpperArm.rotation.z = -1.1; // ~63° down from horizontal
         }
         if (rightUpperArm) {
-          rightUpperArm.rotation.z = -1.1;
+          rightUpperArm.rotation.z = 1.1;
         }
         if (leftLowerArm) {
-          leftLowerArm.rotation.z = 0.15; // Slight bend at elbow
+          leftLowerArm.rotation.z = -0.15; // Slight bend at elbow
         }
         if (rightLowerArm) {
-          rightLowerArm.rotation.z = -0.15;
+          rightLowerArm.rotation.z = 0.15;
         }
 
         console.log("[ClawBody] VRM model loaded, rest pose applied");
