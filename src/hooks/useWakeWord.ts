@@ -85,6 +85,10 @@ export interface UseWakeWordReturn {
   start: () => void;
   /** Stop wake word detection */
   stop: () => void;
+  /** Temporarily pause (e.g., when voice input takes over). Auto-resumes via resume(). */
+  pause: () => void;
+  /** Resume after pause */
+  resume: () => void;
 }
 
 export function useWakeWord(options: UseWakeWordOptions): UseWakeWordReturn {
@@ -207,16 +211,44 @@ export function useWakeWord(options: UseWakeWordOptions): UseWakeWordReturn {
 
   const stop = useCallback(() => {
     keepAliveRef.current = false;
+    pausedRef.current = false;
     recognitionRef.current?.abort();
     recognitionRef.current = null;
     setActive(false);
   }, []);
 
+  // Pause: stop recognition but remember we want to resume
+  const pausedRef = useRef(false);
+
+  const pause = useCallback(() => {
+    if (!keepAliveRef.current) return; // Not running, nothing to pause
+    pausedRef.current = true;
+    keepAliveRef.current = false; // Prevent auto-restart
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
+    setActive(false);
+    console.log("[WakeWord] Paused (yielding to voice input)");
+  }, []);
+
+  const resume = useCallback(() => {
+    if (!pausedRef.current) return; // Wasn't paused
+    pausedRef.current = false;
+    if (enabled && supported && wakeWord.trim()) {
+      // Small delay to let the other recognition fully release
+      setTimeout(() => {
+        if (!pausedRef.current) { // Check again after delay
+          startRecognition();
+          console.log("[WakeWord] Resumed");
+        }
+      }, 300);
+    }
+  }, [enabled, supported, wakeWord, startRecognition]);
+
   // Auto-start/stop based on enabled prop
   useEffect(() => {
-    if (enabled && supported && wakeWord.trim()) {
+    if (enabled && supported && wakeWord.trim() && !pausedRef.current) {
       startRecognition();
-    } else {
+    } else if (!enabled) {
       stop();
     }
     return () => { stop(); };
@@ -227,5 +259,7 @@ export function useWakeWord(options: UseWakeWordOptions): UseWakeWordReturn {
     active,
     start: startRecognition,
     stop,
+    pause,
+    resume,
   };
 }

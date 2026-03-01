@@ -72,6 +72,8 @@ export interface UseVoiceInputOptions {
   onResult: (text: string) => void;
   /** Called with interim (partial) transcript */
   onInterim?: (text: string) => void;
+  /** Called when recognition ends (naturally or by user) — use to resume wake word */
+  onEnd?: () => void;
   /** Language code (default: "en-US") */
   lang?: string;
   /** Whether to auto-restart after each result (continuous conversation) */
@@ -94,7 +96,7 @@ export interface UseVoiceInputReturn {
 }
 
 export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputReturn {
-  const { onResult, onInterim, lang = "en-US", continuous = false } = options;
+  const { onResult, onInterim, onEnd, lang = "en-US", continuous = false } = options;
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState("");
   const [supported] = useState(() => getSpeechRecognition() !== null);
@@ -105,8 +107,10 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
   // Keep callbacks in refs to avoid re-creating recognition
   const onResultRef = useRef(onResult);
   const onInterimRef = useRef(onInterim);
+  const onEndRef = useRef(onEnd);
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
   useEffect(() => { onInterimRef.current = onInterim; }, [onInterim]);
+  useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
 
   const startListening = useCallback(() => {
     const SpeechRecognitionCtor = getSpeechRecognition();
@@ -174,9 +178,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
           recognition.start();
         } catch {
           shouldRestartRef.current = false;
+          onEndRef.current?.();
         }
       } else {
         recognitionRef.current = null;
+        onEndRef.current?.();
       }
     };
 

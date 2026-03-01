@@ -56,13 +56,17 @@ export default function App() {
   });
 
   // ── Voice Input (STT) ──
+  // wakeWord ref — forward-declared so voiceInput callbacks can access it
+  const wakeWordRef = useRef<{ pause: () => void; resume: () => void }>({ pause: () => {}, resume: () => {} });
+
   const handleVoiceResult = useCallback((text: string) => {
+    // Voice input finished — resume wake word
+    wakeWordRef.current.resume();
+
     if (!config?.autoSendVoice) {
-      // If auto-send is off, put text in chat input
       setChatInput(text);
       return;
     }
-    // Auto-send with optional camera attachment
     if (config?.cameraEnabled && camera.active) {
       const frame = camera.snapshot();
       if (frame) {
@@ -77,8 +81,14 @@ export default function App() {
     void sendMessage(text);
   }, [config?.autoSendVoice, config?.cameraEnabled, camera, sendMessage]);
 
+  const handleVoiceEnd = useCallback(() => {
+    // Voice input ended (naturally or by error) — resume wake word
+    wakeWordRef.current.resume();
+  }, []);
+
   const voiceInput = useVoiceInput({
     onResult: handleVoiceResult,
+    onEnd: handleVoiceEnd,
     lang: config?.sttLanguage ?? "en-US",
     continuous: false,
   });
@@ -131,6 +141,25 @@ export default function App() {
     onActivated: handleWakeActivated,
     enabled: config?.wakeWordEnabled ?? false,
   });
+
+  // Keep ref in sync so voiceInput callbacks can access pause/resume
+  useEffect(() => {
+    wakeWordRef.current = { pause: wakeWord.pause, resume: wakeWord.resume };
+  }, [wakeWord.pause, wakeWord.resume]);
+
+  // Wrap mic toggle: pause wake word before starting voice input
+  const handleMicToggle = useCallback(() => {
+    if (voiceInput.listening) {
+      voiceInput.stopListening();
+      wakeWord.resume();
+    } else {
+      wakeWord.pause();
+      // Small delay to let wake word recognition fully stop
+      setTimeout(() => {
+        voiceInput.startListening();
+      }, 200);
+    }
+  }, [voiceInput, wakeWord]);
 
   // ── Auto-speak AI responses ──
   useEffect(() => {
@@ -368,7 +397,7 @@ export default function App() {
           {config?.voiceInputEnabled && voiceInput.supported && (
             <button
               className={`mic-btn${voiceInput.listening ? " listening" : ""}`}
-              onClick={voiceInput.toggleListening}
+              onClick={handleMicToggle}
               title={voiceInput.listening ? "Stop listening" : "Start listening"}
             >
               🎤
