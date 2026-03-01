@@ -190,6 +190,7 @@ export class GatewayClient {
       sessionKey: this.options.sessionKey,
       message,
       deliver: false,
+      idempotencyKey: `cb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     };
 
     if (attachments && attachments.length > 0) {
