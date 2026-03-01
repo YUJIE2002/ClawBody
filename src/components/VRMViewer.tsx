@@ -5,6 +5,7 @@ import { VRMLoaderPlugin, VRM } from "@pixiv/three-vrm";
 import type { Emotion } from "../lib/emotion";
 import type { PoseConfig, AnimationConfig, CameraConfig } from "../lib/config";
 import { DEFAULT_POSE, DEFAULT_ANIMATION, DEFAULT_CAMERA } from "../lib/config";
+import { createIdleScheduler, updateIdleScheduler, type IdleSchedulerState } from "../lib/idle-actions";
 
 interface VRMViewerProps {
   /** URL to the VRM model file */
@@ -41,6 +42,7 @@ export default function VRMViewer({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const clockRef = useRef(new THREE.Clock());
   const hipsBaseY = useRef<number | null>(null);
+  const idleScheduler = useRef<IdleSchedulerState>(createIdleScheduler());
 
   // Store latest props in refs for animation loop access
   const emotionRef = useRef(emotion);
@@ -236,6 +238,8 @@ export default function VRMViewer({
       if (vrm) {
         applyIdleAnimation(vrm, elapsed);
         applySpeakingAnimation(vrm, elapsed);
+        // Random idle actions (blink, look around, weight shift, etc.)
+        updateIdleScheduler(idleScheduler.current, vrm, elapsed);
         vrm.update(delta);
       }
       renderer.render(scene, camera);
