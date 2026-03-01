@@ -6,7 +6,7 @@
  * Then: req/res JSON-RPC + streamed events.
  */
 
-type RequestId = number;
+type RequestId = number | string;
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -224,14 +224,13 @@ export class GatewayClient {
    * Send the connect handshake to the Gateway.
    */
   private sendConnectHandshake(nonce?: string, ts?: number): void {
-    const id = this.nextId++;
+    const id = String(this.nextId++);
 
     const connectParams: Record<string, unknown> = {
       minProtocol: 3,
       maxProtocol: 3,
       client: {
         id: "openclaw-control-ui",
-        displayName: "ClawBody",
         version: "0.1.0",
         platform: "web",
         mode: "webchat",
@@ -249,15 +248,8 @@ export class GatewayClient {
       connectParams.auth = { token: this.options.token };
     }
 
-    // Device identity (minimal for localhost connections)
-    const deviceId = this.getOrCreateDeviceId();
-    connectParams.device = { id: deviceId };
-
-    // If server sent a nonce, include it (for non-local connections)
-    if (nonce) {
-      (connectParams.device as Record<string, unknown>).nonce = nonce;
-      (connectParams.device as Record<string, unknown>).signedAt = ts || Date.now();
-    }
+    // Note: device identity omitted for localhost/tunnel connections
+    // (allowInsecureAuth enabled on gateway for this use case)
 
     this.pending.set(id, {
       resolve: (result: unknown) => {
@@ -361,7 +353,7 @@ export class GatewayClient {
 
     // --- Response frames ---
     if (frameType === "res") {
-      const id = data.id as number;
+      const id = data.id as RequestId;
       const pending = this.pending.get(id);
       if (pending) {
         this.pending.delete(id);
