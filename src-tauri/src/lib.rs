@@ -131,7 +131,7 @@ impl Default for CameraViewConfig {
 
 fn default_tts_rate() -> f64 { 1.0 }
 fn default_tts_pitch() -> f64 { 1.0 }
-fn default_stt_language() -> String { "en-US".to_string() }
+fn default_stt_language() -> String { "zh-CN".to_string() }
 fn default_wake_word() -> String { "顾衍".to_string() }
 fn default_wake_word_lang() -> String { "zh-CN".to_string() }
 
@@ -156,7 +156,7 @@ impl Default for AppConfig {
             tts_voice_name: String::new(),
             tts_rate: 1.0,
             tts_pitch: 1.0,
-            stt_language: "en-US".to_string(),
+            stt_language: "zh-CN".to_string(),
             auto_send_voice: false,
             wake_word_enabled: false,
             wake_word: "顾衍".to_string(),

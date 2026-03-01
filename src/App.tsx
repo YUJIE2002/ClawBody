@@ -121,9 +121,12 @@ export default function App() {
       // Wake word + command in same utterance → send directly
       void sendMessage(text);
     } else {
-      // Just wake word → start listening for command via voice input
+      // Just wake word → pause wake word, then start voice input
       if (config?.voiceInputEnabled && voiceInput.supported) {
-        voiceInput.startListening();
+        wakeWordRef.current.pause();
+        setTimeout(() => {
+          voiceInput.startListening();
+        }, 200);
       }
     }
   }, [connected, sendMessage, config?.voiceInputEnabled, voiceInput]);
@@ -374,6 +377,13 @@ export default function App() {
       {voiceInput.listening && voiceInput.interimText && (
         <div className="interim-bubble">
           🎤 {voiceInput.interimText}
+        </div>
+      )}
+
+      {/* Voice input error */}
+      {voiceInput.error && !voiceInput.listening && (
+        <div className="interim-bubble" style={{ color: "#f87171" }} onClick={() => {}}>
+          {voiceInput.error}
         </div>
       )}
 

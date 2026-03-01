@@ -74,7 +74,9 @@ export interface UseVoiceInputOptions {
   onInterim?: (text: string) => void;
   /** Called when recognition ends (naturally or by user) — use to resume wake word */
   onEnd?: () => void;
-  /** Language code (default: "en-US") */
+  /** Called when a real error occurs (not no-speech/aborted) */
+  onError?: (error: string) => void;
+  /** Language code (default: "zh-CN") */
   lang?: string;
   /** Whether to auto-restart after each result (continuous conversation) */
   continuous?: boolean;
@@ -87,6 +89,8 @@ export interface UseVoiceInputReturn {
   listening: boolean;
   /** Current interim transcript */
   interimText: string;
+  /** Last error message (cleared on next start) */
+  error: string;
   /** Start listening */
   startListening: () => void;
   /** Stop listening */
@@ -96,9 +100,10 @@ export interface UseVoiceInputReturn {
 }
 
 export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputReturn {
-  const { onResult, onInterim, onEnd, lang = "en-US", continuous = false } = options;
+  const { onResult, onInterim, onEnd, onError, lang = "zh-CN", continuous = false } = options;
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState("");
+  const [error, setError] = useState("");
   const [supported] = useState(() => getSpeechRecognition() !== null);
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
@@ -108,9 +113,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
   const onResultRef = useRef(onResult);
   const onInterimRef = useRef(onInterim);
   const onEndRef = useRef(onEnd);
+  const onErrorRef = useRef(onError);
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
   useEffect(() => { onInterimRef.current = onInterim; }, [onInterim]);
   useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   const startListening = useCallback(() => {
     const SpeechRecognitionCtor = getSpeechRecognition();
@@ -135,6 +142,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     recognition.onstart = () => {
       setListening(true);
       setInterimText("");
+      setError("");
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -165,6 +173,15 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
       // "no-speech" and "aborted" are not real errors
       if (event.error === "no-speech" || event.error === "aborted") return;
       console.error("[ClawBody] Speech recognition error:", event.error, event.message);
+      const errorMap: Record<string, string> = {
+        "not-allowed": "🎤 麦克风权限被拒绝，请在系统设置中允许",
+        "service-not-available": "🎤 语音识别服务不可用",
+        "network": "🎤 网络错误，语音识别需要联网",
+        "audio-capture": "🎤 无法访问麦克风",
+      };
+      const msg = errorMap[event.error] ?? `🎤 语音识别错误: ${event.error}`;
+      setError(msg);
+      onErrorRef.current?.(msg);
       setListening(false);
       shouldRestartRef.current = false;
     };
@@ -227,6 +244,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     supported,
     listening,
     interimText,
+    error,
     startListening,
     stopListening,
     toggleListening,

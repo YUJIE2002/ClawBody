@@ -102,7 +102,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   ttsVoiceName: "",
   ttsRate: 1.0,
   ttsPitch: 1.0,
-  sttLanguage: "en-US",
+  sttLanguage: "zh-CN",
   autoSendVoice: true,
   // Wake word defaults
   wakeWordEnabled: false,
