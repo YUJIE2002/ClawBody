@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
@@ -37,6 +38,13 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "entitlements": null,
+      "infoPlist": {
+        "NSCameraUsageDescription": "ClawBody uses the camera to let your AI companion see you.",
+        "NSMicrophoneUsageDescription": "ClawBody uses the microphone for voice input and wake word detection."
+      }
+    }
   }
 }
