@@ -325,15 +325,26 @@ export class GatewayClient {
         return;
       }
 
-      // agent — streamed AI response
-      if (eventName === "agent") {
+      // chat — streamed AI response (delta/final)
+      if (eventName === "chat") {
+        const state = payload.state as string | undefined;
+        const message = payload.message as Record<string, unknown> | undefined;
+        // Extract text from message.content array or message.text
+        let text: string | undefined;
+        if (message?.content && Array.isArray(message.content)) {
+          text = (message.content as Array<Record<string, unknown>>)
+            .filter((c) => c.type === "text")
+            .map((c) => c.text as string)
+            .join("");
+        }
+
         const chatEvent: ChatEvent = {
           type: "chat",
-          text: payload.text as string | undefined,
-          fullText: payload.fullText as string | undefined,
-          done: payload.done as boolean | undefined,
-          runId: payload.runId as string | undefined,
-          sessionKey: payload.sessionKey as string | undefined,
+          text: state === "delta" ? text : undefined,
+          fullText: state === "final" ? text : undefined,
+          done: state === "final" || state === "aborted" || state === "error",
+          runId: (data.runId ?? payload.runId) as string | undefined,
+          sessionKey: (data.sessionKey ?? payload.sessionKey) as string | undefined,
         };
         this.options.onChat(chatEvent);
         return;
